@@ -16,6 +16,3 @@ _Status: v1.1 | Team Verified_
 | Runtime Context         | Direct DB query tools                                | `agent/tools.yaml` (MCP config)       |
 
 ---
-### ⚙️ Injection Test Verification
-- **Test Status:** ⚠️ PENDING (Not yet indexed for automated suite)
-- **Verified On:** N/A
