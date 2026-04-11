@@ -46,7 +46,10 @@ kb/
 │   ├── openai_table_enrichment.md   # Codex-powered schema resolution
 │   ├── oracle_forge_mapping.md      # Oracle Forge specific mapping
 │   └── injection_tests/
-│       ├── test_memory_layers.txt   # Test queries + expected answers
-│       ├── test_tool_scoping.txt
-│       └── test_six_layers.txt
+│       ├── claude_memory_layers_test.md
+│       ├── claude_tool_scoping_test.md
+│       ├── claude_autodream_test.md
+│       ├── openai_six_layers_test.md
+│       ├── openai_table_enrichment_test.md
+│       └── test_combined.md
 ```
