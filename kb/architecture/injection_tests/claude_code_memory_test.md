@@ -4,205 +4,197 @@
 `kb/architecture/claude_code_memory.md`
 
 ## Why this test is critical
-This document is the conceptual model for how the Oracle Forge agent structures its own memory. If the agent cannot correctly describe the three layers and autoDream from this document alone, it will make incorrect decisions about what to load, when to load it, and what to consolidate.
+claude_code_memory.md describes the agent's own memory architecture. If the agent cannot derive correct memory loading decisions from this document alone, it will mismanage its own context across sessions.
 
 ---
 
 ## Test questions
 
 ### Question 1
-"What is the purpose of MEMORY.md in Claude Code's memory system and what token limit applies to it?"
+"What are the three memory layers in Claude Code's memory architecture, what does each one do, and why are session transcripts never pre-loaded?"
 
 Required concepts:
-- MEMORY.md is a small index file not a knowledge document
-- It lists every other KB document by name with a one-sentence description
-- The agent reads MEMORY.md first at session start
-- MEMORY.md is used to decide which topic files to load next
-- MEMORY.md is approximately 200 tokens
-- Growing MEMORY.md beyond 200 tokens defeats its purpose as an index
+- Layer 1 is MEMORY.md which is a small index file of approximately 200 tokens loaded first at session start
+- MEMORY.md lists every other KB document by name with a one-sentence description
+- Layer 2 is topic files of approximately 300 to 400 tokens each loaded on demand
+- Topic files contain actual knowledge for specific subjects and are loaded only when relevant to the current question
+- Layer 3 is session transcripts which are searched but never pre-loaded
+- Searching transcripts is cheap but pre-loading them is expensive
 
 Forbidden contradictions:
-- Stating MEMORY.md contains the actual knowledge content
-- Stating MEMORY.md is loaded on demand not at session start
+- Stating that session transcripts are pre-loaded
+- Stating that all topic files are loaded upfront
+- Stating that MEMORY.md is a knowledge document rather than an index
 
 ---
 
 ### Question 2
-"What is autoDream, when does it run, and what does it do to topic files?"
+"What is the autoDream consolidation pattern, when does it run, what does it do to topic files after consolidation, and what are the three trigger thresholds?"
 
 Required concepts:
-- autoDream is a background process
-- It runs after sessions end not during sessions
-- It reviews what was learned during the session
-- It consolidates learnings back into the relevant topic files
+- autoDream is a background process that runs after sessions end not during sessions
+- It consolidates learnings from the session back into topic files
 - It removes old superseded information from topic files
-- The topic file after consolidation is smaller and more precise than before
-- It is implemented in src/tasks/DreamTask and src/services/autoDream in the Claude Code source
-- For Oracle Forge it means reviewing the corrections log after agent runs and absorbing verified fixes into domain documents
+- After consolidation the topic file is smaller and more precise than before
+- User corrects the same pattern 3 or more times triggers write to MEMORY.md
+- Agent successfully uses a pattern 5 or more times triggers promote to a topic file
+- Topic file grows beyond 500 words triggers split into subtopics
 
 Forbidden contradictions:
-- Stating autoDream runs during the session before the agent answers
-- Stating autoDream adds content to topic files without removing outdated information
+- Stating that autoDream runs during sessions
+- Stating that autoDream makes topic files larger
 
 ---
 
 ### Question 3
-"Why does Claude Code use 40 or more tools each with tight domain boundaries instead of fewer general-purpose tools?"
+"What is the Oracle Forge equivalent of autoDream and how does it work?"
 
 Required concepts:
-- Each tool has a single tight responsibility
-- A tool with one precise purpose is more reliable than a tool doing multiple things
-- When a tool fails the agent knows exactly which tool failed and why
-- Tight domain boundaries make failures diagnosable
-- Tight domain boundaries make failures recoverable
-- This is why Oracle Forge uses separate tools per database type rather than one general query tool
+- After agent runs review kb/corrections/log.md
+- Absorb verified fixes into the relevant kb/domain/ documents
+- Remove absorbed entries from the corrections log
+- This is the manual Oracle Forge equivalent of the autoDream loop
 
 Forbidden contradictions:
-- Stating fewer tools are better for reliability
-- Stating tool boundaries do not affect failure diagnosis
+- Stating that Oracle Forge uses automated autoDream
+- Stating that corrections are kept in the log permanently
 
 ---
 
 ### Question 4
-"What are session transcripts in Claude Code's memory system, how are they accessed, and why are they never pre-loaded?"
+"Why is MEMORY.md capped at approximately 200 tokens and what happens if it grows beyond that?"
 
 Required concepts:
-- Session transcripts are logs of past agent runs
-- They record which queries were asked and what tools were called and what results came back
-- They are never pre-loaded into context
-- The agent searches them only when a new question closely resembles a past one
-- Searching is cheap and pre-loading is expensive
-- Context window budget management in QueryEngine.ts enforces the never-pre-load discipline
+- MEMORY.md is approximately 200 tokens and this limit is deliberate
+- Growing MEMORY.md beyond 200 tokens defeats its purpose as an index
+- It becomes a topic document masquerading as an index
+- It wastes mandatory context budget before any question-specific loading begins
 
 Forbidden contradictions:
-- Stating session transcripts are always pre-loaded at session start
-- Stating session transcripts replace topic files
+- Stating that MEMORY.md should contain detailed knowledge
+- Stating that MEMORY.md has no token limit
 
 ---
 
+### Question 5
+"What is the tool scoping philosophy described in this document and why does the Oracle Forge agent use separate tools per database type?"
+
+Required concepts:
+- Each tool has a single tight responsibility with one tool one responsibility one domain boundary
+- A tool that does one thing precisely is more reliable than a tool doing multiple things loosely
+- Tight domain boundaries make failures diagnosable and recoverable
+- This is why the Oracle Forge agent uses separate tools per database type not a single query database tool
+
+Forbidden contradictions:
+- Stating that one general tool is preferred
+- Stating that tool overlap is acceptable
+
 ## Test result
 
-**Run timestamp:** 2026-04-11 12:30 UTC
-**Model used:** anthropic/claude-sonnet-4
+**Run timestamp:** 2026-04-11 17:47 UTC
+**Model used:** google/gemini-2.0-flash-001
 **Document tested:** kb/architecture/claude_code_memory.md
 **Overall result:** PASS
 **Average score:** 100.0/100
 
 ### Question 1 — PASS (100/100)
 
-**Question:** What is the purpose of MEMORY.md in Claude Code's memory system and what token limit applies to it?
+**Question:** What are the three memory layers in Claude Code's memory architecture, what does each one do, and why are session transcripts never pre-loaded?
 
 **Concepts found (6/6):**
-  - [x] MEMORY.md is a small index file not a knowledge document
-  - [x] It lists every other KB document by name with a one-sentence description
-  - [x] The agent reads MEMORY.md first at session start
-  - [x] MEMORY.md is used to decide which topic files to load next
-  - [x] MEMORY.md is approximately 200 tokens
-  - [x] Growing MEMORY.md beyond 200 tokens defeats its purpose as an index
+  - [x] Layer 1 is MEMORY.md which is a small index file of approximately 200 tokens loaded first at session start
+  - [x] MEMORY.md lists every other KB document by name with a one-sentence description
+  - [x] Layer 2 is topic files of approximately 300 to 400 tokens each loaded on demand
+  - [x] Topic files contain actual knowledge for specific subjects and are loaded only when relevant to the current question
+  - [x] Layer 3 is session transcripts which are searched but never pre-loaded
+  - [x] Searching transcripts is cheap but pre-loading them is expensive
 
 **Actual answer:**
-Based on the document, MEMORY.md serves as a small index file in Claude Code's Layer 1 memory system. Its purpose is to:
+The three memory layers in Claude Code's memory architecture are:
 
-1. **Function as an index** - It lists every other knowledge base document by name with a one-sentence description
-2. **Enable efficient knowledge discovery** - The agent reads this file first at session start to know what knowledge is available
-3. **Guide selective loading** - It helps the agent decide what to load next based on relevance
+1.  **MEMORY.md index:** A small index file (~200 tokens) that lists every other KB document by name with a one-sentence description of what that document contains. The agent reads MEMORY.md first at session start to decide which topic files to load.
+2.  **Topic files:** These contain the actual knowledge for a specific subject and are loaded only when the MEMORY.md index indicates they are relevant to the current question.
+3.  **Session transcripts:** Logs of past agent runs, including queries asked, tools called, results, and final answers.
 
-The token limit that applies to MEMORY.md is **~200 tokens maximum**. The document emphasizes that it is "never more than ~200 tokens" and states that "growing it beyond this defeats its purpose as an index."
+Session transcripts are never pre-loaded into context because pre-loading is expensive, and most sessions do not need them. The agent searches transcripts only when a new question closely resembles a past one, because searching is cheap, while pre-loading is expensive.
 
-The document describes MEMORY.md as functioning "like a table of contents — pointing to topic files, not containing content itself." It's explicitly noted that MEMORY.md is "not a knowledge document itself" but rather an index that enables the agent to selectively load the appropriate Layer 2 topic files (~300-400 tokens each) on demand.
-
-**Grader reasoning:** All six required concepts are clearly present and no forbidden contradictions were found.
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are found.
 
 ---
 
 ### Question 2 — PASS (100/100)
 
-**Question:** What is autoDream, when does it run, and what does it do to topic files?
+**Question:** What is the autoDream consolidation pattern, when does it run, what does it do to topic files after consolidation, and what are the three trigger thresholds?
 
-**Concepts found (8/8):**
-  - [x] autoDream is a background process
-  - [x] It runs after sessions end not during sessions
-  - [x] It reviews what was learned during the session
-  - [x] It consolidates learnings back into the relevant topic files
+**Concepts found (7/7):**
+  - [x] autoDream is a background process that runs after sessions end not during sessions
+  - [x] It consolidates learnings from the session back into topic files
   - [x] It removes old superseded information from topic files
-  - [x] The topic file after consolidation is smaller and more precise than before
-  - [x] It is implemented in src/tasks/DreamTask and src/services/autoDream in the Claude Code source
-  - [x] For Oracle Forge it means reviewing the corrections log after agent runs and absorbing verified fixes into domain documents
+  - [x] After consolidation the topic file is smaller and more precise than before
+  - [x] User corrects the same pattern 3 or more times triggers write to MEMORY.md
+  - [x] Agent successfully uses a pattern 5 or more times triggers promote to a topic file
+  - [x] Topic file grows beyond 500 words triggers split into subtopics
 
 **Actual answer:**
-Based on the document, autoDream is a background process with the following characteristics:
+The autoDream consolidation pattern is a background process that runs after sessions end. It consolidates learnings from the session back into the relevant topic files and removes old, superseded information from topic files. After consolidation, the topic file is smaller and more precise than before the session.
 
-**What it is:** autoDream is a consolidation process implemented in the `src/tasks/DreamTask/` and `src/services/autoDream/` directories of the Claude Code codebase.
+The three consolidation trigger thresholds are:
 
-**When it runs:** autoDream runs after sessions end — not during sessions. It operates as a background process.
+*   User corrects the same pattern 3+ times → write to MEMORY.md
+*   Agent successfully uses a pattern 5+ times → promote to a topic file
+*   Topic file grows beyond 500 words → split into subtopics
 
-**What it does to topic files:** autoDream reviews what was learned during the session, including:
-- Corrections made
-- Successful query patterns  
-- New business term definitions discovered
-
-It then consolidates these learnings back into the relevant topic files. Importantly, old, superseded information is removed during this process. The result is that topic files after consolidation are smaller and more precise than before the session.
-
-This consolidation mechanism prevents the knowledge base from growing into noise. For Oracle Forge specifically, this means reviewing the corrections log after agent runs, absorbing verified fixes into domain documents, and then removing those entries from the corrections log once they have been absorbed.
-
-**Grader reasoning:** All eight required concepts are clearly present in the actual answer and no forbidden contradictions were found.
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are present.
 
 ---
 
 ### Question 3 — PASS (100/100)
 
-**Question:** Why does Claude Code use 40 or more tools each with tight domain boundaries instead of fewer general-purpose tools?
+**Question:** What is the Oracle Forge equivalent of autoDream and how does it work?
 
-**Concepts found (6/6):**
-  - [x] Each tool has a single tight responsibility
-  - [x] A tool with one precise purpose is more reliable than a tool doing multiple things
-  - [x] When a tool fails the agent knows exactly which tool failed and why
-  - [x] Tight domain boundaries make failures diagnosable
-  - [x] Tight domain boundaries make failures recoverable
-  - [x] This is why Oracle Forge uses separate tools per database type rather than one general query tool
+**Concepts found (4/4):**
+  - [x] After agent runs review kb/corrections/log.md
+  - [x] Absorb verified fixes into the relevant kb/domain/ documents
+  - [x] Remove absorbed entries from the corrections log
+  - [x] This is the manual Oracle Forge equivalent of the autoDream loop
 
 **Actual answer:**
-Based on the document, Claude Code uses 40+ tools with tight domain boundaries because of their tool scoping philosophy that "each tool has a single tight responsibility." The document states this as "the rule — one tool, one responsibility, a named domain boundary."
+The Oracle Forge equivalent of autoDream is a manual process of absorbing verified corrections from `kb/corrections/log.md` into the relevant `kb/domain/` documents after each agent run, and then removing the absorbed entries from the corrections log.
 
-The specific reasons given are:
-
-1. **Reliability**: "A tool that does one thing precisely is more reliable than a tool that tries to do three things loosely."
-
-2. **Diagnosable failures**: "Tight domain boundaries make failures diagnosable — the agent knows exactly which tool failed."
-
-3. **Recoverable failures**: "Tight domain boundaries make failures recoverable — the agent knows exactly what to fix."
-
-When a tool fails, the agent has precise knowledge of which specific tool failed and why, rather than having to debug a complex general-purpose tool where the failure point could be unclear.
-
-The document provides a concrete example: "This is directly why the Oracle Forge agent uses separate tools per database type rather than a single 'query database' tool that switches internally."
-
-**Grader reasoning:** All six required concepts are clearly present in the actual answer with accurate quotes and explanations, and no forbidden contradictions were found.
+**Grader reasoning:** All required concepts are correctly identified in the answer, and there are no forbidden contradictions.
 
 ---
 
 ### Question 4 — PASS (100/100)
 
-**Question:** What are session transcripts in Claude Code's memory system, how are they accessed, and why are they never pre-loaded?
+**Question:** Why is MEMORY.md capped at approximately 200 tokens and what happens if it grows beyond that?
 
-**Concepts found (6/6):**
-  - [x] Session transcripts are logs of past agent runs
-  - [x] They record which queries were asked and what tools were called and what results came back
-  - [x] They are never pre-loaded into context
-  - [x] The agent searches them only when a new question closely resembles a past one
-  - [x] Searching is cheap and pre-loading is expensive
-  - [x] Context window budget management in QueryEngine.ts enforces the never-pre-load discipline
+**Concepts found (4/4):**
+  - [x] MEMORY.md is approximately 200 tokens and this limit is deliberate
+  - [x] Growing MEMORY.md beyond 200 tokens defeats its purpose as an index
+  - [x] It becomes a topic document masquerading as an index
+  - [x] It wastes mandatory context budget before any question-specific loading begins
 
 **Actual answer:**
-Based on the document, session transcripts in Claude Code's memory system are:
+MEMORY.md is capped at approximately 200 tokens because growing beyond that defeats its purpose as an index. It becomes a topic document masquerading as an index and wastes mandatory context budget before any question-specific loading begins.
 
-**What they are:** Session transcripts are logs of past agent runs that record which queries were asked, what tools were called, what results came back, and what the final answer was.
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are found, so the score is 100.
 
-**How they are accessed:** They are searched only when a new question closely resembles a past one. The agent never pre-loads them into context but searches them on demand.
+---
 
-**Why they are never pre-loaded:** The document states that "Searching is cheap; pre-loading is expensive." The context window budget management in `src/QueryEngine.ts` enforces this "never-pre-load discipline" for session transcripts. This approach preserves the limited context window space for more immediately relevant information like the MEMORY.md index and on-demand topic files, while still allowing access to historical information when needed through search.
+### Question 5 — PASS (100/100)
 
-Session transcripts constitute Layer 3 of Claude Code's three-layer memory architecture, with the key principle being that they are accessed reactively through search rather than proactively loaded into context.
+**Question:** What is the tool scoping philosophy described in this document and why does the Oracle Forge agent use separate tools per database type?
 
-**Grader reasoning:** All six required concepts are clearly present in the actual answer and no forbidden contradictions were found.
+**Concepts found (4/4):**
+  - [x] Each tool has a single tight responsibility with one tool one responsibility one domain boundary
+  - [x] A tool that does one thing precisely is more reliable than a tool doing multiple things loosely
+  - [x] Tight domain boundaries make failures diagnosable and recoverable
+  - [x] This is why the Oracle Forge agent uses separate tools per database type not a single query database tool
+
+**Actual answer:**
+The tool scoping philosophy is that each tool has a single tight responsibility - one tool, one responsibility, one domain boundary. A tool that does one thing precisely is more reliable than a tool doing multiple things loosely. Tight domain boundaries make failures diagnosable and recoverable. This is why the Oracle Forge agent uses separate tools per database type, instead of a single "query database" tool that switches internally.
+
+**Grader reasoning:** All required concepts are clearly present and no forbidden contradictions are present.
 
 ---

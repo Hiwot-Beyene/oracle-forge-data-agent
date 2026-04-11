@@ -11,7 +11,7 @@ MEMORY.md is the first document loaded at every session start. If the agent cann
 ## Test questions
 
 ### Question 1
-"I am starting a new session. A user has asked a question about the yelp dataset. In what order do I load documents, and what is the mandatory pre-load token budget?"
+"I am starting a new session. A user has asked a question about the yelp dataset. In what order do I load documents, what is the mandatory pre-load token budget, and what happens if the corrections log is missing?"
 
 Required concepts:
 - tool_scoping.md is loaded first before the question arrives
@@ -31,7 +31,7 @@ Forbidden contradictions:
 ---
 
 ### Question 2
-"A user asks a question that requires understanding how the agent's own context loading works. Which document do I load and why?"
+"A user asks a question that requires understanding how the agent's own memory system works. Which document do I load, what specific topics does it cover including how session transcripts are handled, and is it loaded on demand or always pre-loaded?"
 
 Required concepts:
 - Load claude_code_memory.md
@@ -49,7 +49,7 @@ Forbidden contradictions:
 ---
 
 ### Question 3
-"A user asks about why the agent uses separate database tools instead of one general query tool. Which document contains the answer and is it already loaded?"
+"A user asks about why the agent uses separate database tools instead of one general query tool. Which document contains the answer, what does it say about the tool design philosophy, and is it already loaded or does it need to be loaded on demand?"
 
 Required concepts:
 - The answer is in tool_scoping.md
@@ -64,7 +64,7 @@ Forbidden contradictions:
 ---
 
 ### Question 4
-"A user's question involves an ambiguous business term not recognisable from the schema. What do I load, is it mandatory or optional, and what token budget does it use?"
+"A user's question involves an ambiguous business term not recognisable from the schema. What do I load, is it mandatory or optional, what token budget does it use, what step number is it in the loading order, and what triggers its loading?"
 
 Required concepts:
 - Load kb/domain/business_terms.md
@@ -80,7 +80,7 @@ Forbidden contradictions:
 ---
 
 ### Question 5
-"What is the total token budget for the mandatory pre-load, what is the breakdown of that 900 tokens, what is the maximum optional budget, and what is the total maximum across a full session?"
+"What is the total token budget for the mandatory pre-load, what is the per-document breakdown of that 900 tokens, what is the maximum optional budget, what does the optional budget cover, and what is the total maximum across a full session?"
 
 Required concepts:
 - Mandatory pre-load is approximately 900 tokens
@@ -98,15 +98,15 @@ Forbidden contradictions:
 
 ## Test result
 
-**Run timestamp:** 2026-04-11 12:29 UTC
-**Model used:** anthropic/claude-sonnet-4
+**Run timestamp:** 2026-04-11 17:46 UTC
+**Model used:** google/gemini-2.0-flash-001
 **Document tested:** kb/architecture/MEMORY.md
 **Overall result:** PASS
 **Average score:** 100.0/100
 
 ### Question 1 — PASS (100/100)
 
-**Question:** I am starting a new session. A user has asked a question about the yelp dataset. In what order do I load documents, and what is the mandatory pre-load token budget?
+**Question:** I am starting a new session. A user has asked a question about the yelp dataset. In what order do I load documents, what is the mandatory pre-load token budget, and what happens if the corrections log is missing?
 
 **Concepts found (8/8):**
   - [x] tool_scoping.md is loaded first before the question arrives
@@ -119,39 +119,30 @@ Forbidden contradictions:
   - [x] kb/domain/schemas.md for the yelp section is loaded after the question is received
 
 **Actual answer:**
-Based on the document, here is the exact order for loading documents when starting a new session with a question about the yelp dataset:
+Here's the breakdown based on the document provided:
 
-## Loading Order
+**Document loading order:**
 
-**Mandatory Pre-load (BEFORE processing the question):**
-1. **Step 1:** Load `kb/architecture/tool_scoping.md` [~300 tokens]
-2. **Step 2:** Load `kb/corrections/log.md` last 10 entries [~400 tokens] 
-   - If missing: log "corrections log not yet created", continue
-3. **Step 3:** Load `kb/architecture/MEMORY.md` [~200 tokens]
+1.  `kb/architecture/tool_scoping.md`
+2.  `kb/corrections/log.md` (last 10 entries)
+3.  `kb/architecture/MEMORY.md`
+4.  Receive the question.
+5.  Identify which dataset(s) are involved.
+6.  Load `kb/domain/schemas.md` for those datasets.
+7.  If ambiguous business language detected, load `kb/domain/business_terms.md`.
+8.  Answer the question
 
-**Post-question (AFTER receiving the question):**
-4. **Step 4:** Receive the question
-5. **Step 5:** Identify which dataset(s) are involved (yelp dataset in this case)
-6. **Step 6:** Load `kb/domain/schemas.md` for the yelp dataset [~400 tokens per dataset]
-7. **Step 7:** If question uses ambiguous business language: load `kb/domain/business_terms.md` [~300 tokens] (optional)
-8. **Step 8:** Answer the question
+**Mandatory pre-load token budget:** ~900 tokens.
 
-## Mandatory Pre-load Token Budget
+**What happens if the corrections log is missing:** Log the message "corrections log not yet created", continue, do not stop.
 
-The mandatory pre-load token budget is **~900 tokens total**, broken down as:
-- tool_scoping.md = ~300 tokens
-- corrections/log.md last 10 entries = ~400 tokens  
-- MEMORY.md = ~200 tokens
-
-Note: Schema loads are NOT counted in the mandatory pre-load total - they are question-specific and loaded post-question.
-
-**Grader reasoning:** All required concepts are clearly present and correctly stated with no forbidden contradictions found.
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are found, resulting in a perfect score.
 
 ---
 
 ### Question 2 — PASS (100/100)
 
-**Question:** A user asks a question that requires understanding how the agent's own context loading works. Which document do I load and why?
+**Question:** A user asks a question that requires understanding how the agent's own memory system works. Which document do I load, what specific topics does it cover including how session transcripts are handled, and is it loaded on demand or always pre-loaded?
 
 **Concepts found (7/7):**
   - [x] Load claude_code_memory.md
@@ -163,26 +154,27 @@ Note: Schema loads are NOT counted in the mandatory pre-load total - they are qu
   - [x] Load it on demand when the agent needs to understand its own memory architecture
 
 **Actual answer:**
-Based on the document, if a user asks a question that requires understanding how the agent's own context loading works, you should load **claude_code_memory.md**.
+Based on the provided document:
 
-**Why this document:**
+You should load `claude_code_memory.md`.
 
-According to the registry, claude_code_memory.md contains "Claude Code's three-layer memory architecture extracted from the March 2026 source leak. How the MEMORY.md index works, how topic files are loaded on demand, how session transcripts are searched but never pre-loaded, and the autoDream consolidation pattern."
+It covers Claude Code's three-layer memory architecture, including how the agent's own context loading and memory system works. Specifically, it details:
 
-The document specifically states it should be loaded "on demand, when the agent needs to understand its own memory architecture or when implementing context layer decisions."
+1.  MEMORY.md index (a small file that lists all topic files with one-sentence descriptions).
+2.  Topic files loaded on demand when relevant to the current question.
+3.  Session transcripts searched but never pre-loaded.
 
-Since the question is about understanding the agent's own context loading mechanism, this falls directly under the use case of "when the agent needs to understand its own memory architecture."
+It also covers the autoDream consolidation pattern.
 
-**Token budget:** ~380 tokens
-**Load timing:** On demand (post-question)
+This document is loaded "on demand".
 
-**Grader reasoning:** All seven required concepts are clearly present in the answer and no forbidden contradictions were found.
+**Grader reasoning:** The answer includes all required concepts and no forbidden contradictions, thus earning a score of 100.
 
 ---
 
 ### Question 3 — PASS (100/100)
 
-**Question:** A user asks about why the agent uses separate database tools instead of one general query tool. Which document contains the answer and is it already loaded?
+**Question:** A user asks about why the agent uses separate database tools instead of one general query tool. Which document contains the answer, what does it say about the tool design philosophy, and is it already loaded or does it need to be loaded on demand?
 
 **Concepts found (4/4):**
   - [x] The answer is in tool_scoping.md
@@ -191,19 +183,15 @@ Since the question is about understanding the agent's own context loading mechan
   - [x] tool_scoping.md is already in context when any question arrives
 
 **Actual answer:**
-Based on the document registry, the answer to why the agent uses separate database tools instead of one general query tool is contained in **tool_scoping.md**.
+The document that contains the answer is tool_scoping.md. It says the tool scoping philosophy is that each tool has a single tight responsibility — one tool, one database type, one query dialect. A tool that does one thing precisely is more reliable than a tool doing multiple things loosely. This document is already loaded.
 
-According to the index, tool_scoping.md contains "The tool scoping philosophy that each tool has a single tight responsibility — a tool that does one thing precisely is more reliable than a tool doing multiple things loosely — which is why the agent uses separate database tools instead of one general query tool."
-
-**Is it already loaded?** Yes, it is already loaded. The document states that "tool_scoping.md is mandatory and is already loaded as step 1 of every session — it is always in context when any question arrives."
-
-**Grader reasoning:** All four required concepts are clearly present in the actual answer and no forbidden contradictions were found.
+**Grader reasoning:** All required concepts are present and there are no contradictions.
 
 ---
 
 ### Question 4 — PASS (100/100)
 
-**Question:** A user's question involves an ambiguous business term not recognisable from the schema. What do I load, is it mandatory or optional, and what token budget does it use?
+**Question:** A user's question involves an ambiguous business term not recognisable from the schema. What do I load, is it mandatory or optional, what token budget does it use, what step number is it in the loading order, and what triggers its loading?
 
 **Concepts found (5/5):**
   - [x] Load kb/domain/business_terms.md
@@ -213,23 +201,21 @@ According to the index, tool_scoping.md contains "The tool scoping philosophy th
   - [x] It is step 7 in the loading order triggered by detected ambiguity in the question
 
 **Actual answer:**
-Based on the document, for a user's question involving an ambiguous business term not recognizable from the schema:
+Based on the document:
 
-**What to load:** kb/domain/business_terms.md
+*   **What to load:** `kb/domain/business_terms.md`
+*   **Mandatory or optional:** Optional
+*   **Token budget:** ~300 tokens
+*   **Step number in loading order:** Step 7
+*   **Trigger for loading:** Ambiguous business language detected that is not resolvable from the schema.
 
-**Mandatory or optional:** Optional - it is step 7 in the context loading order and is "triggered by detected ambiguity in the question." The document explicitly states to "load it when and only when the question uses ambiguous business language that is not resolvable from the schema."
-
-**Token budget:** ~300 tokens
-
-This load happens post-question (after step 4 when you receive the question) and falls under the post-question budget allocation, not the mandatory pre-load budget.
-
-**Grader reasoning:** All five required concepts are clearly present in the answer and no forbidden contradictions were found.
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are found, resulting in a perfect score.
 
 ---
 
 ### Question 5 — PASS (100/100)
 
-**Question:** What is the total token budget for the mandatory pre-load, what is the breakdown of that 900 tokens, what is the maximum optional budget, and what is the total maximum across a full session?
+**Question:** What is the total token budget for the mandatory pre-load, what is the per-document breakdown of that 900 tokens, what is the maximum optional budget, what does the optional budget cover, and what is the total maximum across a full session?
 
 **Concepts found (5/5):**
   - [x] Mandatory pre-load is approximately 900 tokens
@@ -239,24 +225,17 @@ This load happens post-question (after step 4 when you receive the question) and
   - [x] The optional budget covers post-question loads not the mandatory pre-load
 
 **Actual answer:**
-Based on the document, here are the token budget details:
+Based on the provided document:
 
-**Total token budget for mandatory pre-load: ~900 tokens**
+*   The total token budget for the mandatory pre-load is ~900 tokens.
+*   The per-document breakdown of the 900 tokens is:
+    *   tool_scoping.md = 300 tokens
+    *   corrections/log.md last 10 entries = 400 tokens
+    *   MEMORY.md = 200 tokens
+*   The maximum optional budget is ~700 tokens.
+*   The optional budget covers schemas and business\_terms combined.
+*   The total maximum across a full session is ~1,600 tokens.
 
-**Breakdown of the 900 tokens:**
-- Step 1: tool_scoping.md = ~300 tokens
-- Step 2: corrections/log.md last 10 entries = ~400 tokens  
-- Step 3: MEMORY.md = ~200 tokens
-
-**Maximum optional budget: ~700 tokens**
-This covers the post-question loads:
-- schemas.md per dataset section = ~400 tokens
-- business_terms.md = ~300 tokens (optional)
-
-**Total maximum across a full session: ~1,600 tokens of KB context**
-
-The document specifically notes that schema loads are not counted in the mandatory pre-load total since they are question-specific and loaded post-question.
-
-**Grader reasoning:** All required concepts are clearly present with accurate token amounts and breakdowns, and no forbidden contradictions were found.
+**Grader reasoning:** All required concepts are present, and no forbidden contradictions are present; the answer receives a perfect score.
 
 ---

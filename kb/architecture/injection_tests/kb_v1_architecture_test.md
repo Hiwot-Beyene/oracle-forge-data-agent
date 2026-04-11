@@ -4,215 +4,220 @@
 `kb/architecture/kb_v1_architecture.md`
 
 ## Why this test is critical
-This document defines the rules governing the entire KB system. If the agent cannot derive the correct subdirectory for a given type of knowledge, it loads the wrong file and wastes context budget on irrelevant content.
+kb_v1_architecture.md describes the Oracle Forge KB structure and the Karpathy method discipline. If the agent cannot derive the correct KB organization and quality rules from this document alone, it risks loading untested documents or misunderstanding the knowledge base structure.
 
 ---
 
 ## Test questions
 
 ### Question 1
-"What are the four KB subdirectories in the Oracle Forge project and what type of information belongs in each one?"
+"What are the four KB subdirectories in the Oracle Forge project and what does each one contain?"
 
 Required concepts:
-- kb/architecture/ contains documents about how the agent itself works including memory architecture and tool scoping rules
-- kb/architecture/ documents change when the agent architecture changes not when datasets change
-- kb/domain/ contains documents about the data the agent works with including schemas and join key formats and business term definitions
-- kb/domain/ documents change when datasets are loaded or failure patterns reveal schema misunderstandings
-- kb/evaluation/ contains documents about how the agent is scored and what the benchmark requires including DAB query format and pass at 1 scoring
-- kb/corrections/ contains the running structured log of agent failures read at every session start
-- kb/corrections/log.md is the self-learning loop written by Drivers after every observed failure
+- kb/architecture/ contains documents about how the agent itself works including memory architecture tool scoping and context loading
+- kb/domain/ contains documents about the data including schemas join keys unstructured fields and business terms
+- kb/evaluation/ contains documents about scoring and the benchmark including DAB query format and failure categories
+- kb/corrections/ contains the running structured log of agent failures with entry format query that failed then what was wrong then correct approach
 
 Forbidden contradictions:
-- Stating agent architecture documents belong in kb/domain/
-- Stating business term definitions belong in kb/architecture/
+- Omitting any of the four subdirectories
+- Stating that corrections are stored in kb/domain/
 
 ---
 
 ### Question 2
-"An Intelligence Officer wants to add a new document to the KB. What are the exact six steps of the injection test protocol they must follow before committing?"
+"What is the Karpathy method and what are the key rules that govern it?"
+
+Required concepts:
+- The Karpathy discipline is removal not accumulation
+- Every document must be minimal and precise
+- Every document must pass an injection test before committing
+- A document that has not passed an injection test must not be loaded by the agent
+- Remove everything the LLM already knows from pretraining
+- Only include content specific to DAB these databases and this agent
+- A KB that grows without being tested becomes noise that degrades the agent
+- The test for every sentence is whether the agent reading only that sentence could take the correct action
+
+Forbidden contradictions:
+- Stating that documents can be loaded without passing injection tests
+- Stating that accumulation is preferred over removal
+- Stating that general knowledge should be included in the KB
+
+---
+
+### Question 3
+"What is the six-step injection test protocol and what is the critical constraint about what other documents can be in the context window during the test?"
 
 Required concepts:
 - Step 1 copy the full text of the document
 - Step 2 open a completely fresh LLM session with no other context and no system prompt
 - Step 3 paste the document as the only content the LLM has seen
 - Step 4 ask the test question written at the bottom of the document
-- Step 5 grade the result as PASS if correct and FAIL if wrong or incomplete
+- Step 5 grade the answer where correct is PASS and wrong or incomplete is FAIL
 - Step 6 write the result to kb/architecture/injection_tests/document_name_test.md
-- Documents without a test result have not been validated and must not be loaded by the agent
+- The test cannot be run with other documents in the context window
 
 Forbidden contradictions:
-- Stating fewer than 6 steps in the protocol
-- Stating untested documents can be loaded by the agent
-- Stating the test can be run with other documents in the context window
-
----
-
-### Question 3
-"What is the Karpathy discipline and what is the core difference between this discipline and standard documentation practice?"
-
-Required concepts:
-- The Karpathy discipline is removal not accumulation
-- Every document must be minimal and precise
-- Every document must pass an injection test before committing
-- Standard documentation grows over time by adding more content
-- The Karpathy discipline requires removing everything the LLM already knows from pretraining
-- Only include content specific to DAB these databases and this agent
-- A KB that grows without being tested becomes noise that degrades the agent
-- The test for every sentence is whether the agent reading only that sentence could take the correct action
-
-Forbidden contradictions:
-- Stating the Karpathy discipline encourages adding comprehensive content for completeness
-- Stating documents do not need testing before use
+- Stating that other documents can be in the context during the test
+- Stating that the test can use a system prompt
 
 ---
 
 ### Question 4
-"Which document has the smallest token budget, what is that budget, and why is it deliberately kept that small?"
+"Why is MEMORY.md capped at the smallest token budget, what is its only job, when is it loaded, what happens if it grows beyond that cap, and what should be done with content that does not belong in MEMORY.md?"
 
 Required concepts:
-- MEMORY.md has the smallest token budget
-- The budget is approximately 200 tokens
-- MEMORY.md is loaded at every session start before the question arrives
-- MEMORY.md is a pointer not a topic document
-- Its only job is to list what other documents exist and what each one contains in one sentence
-- Every token it consumes comes from the mandatory pre-load budget before any question-specific loading begins
+- MEMORY.md is capped at approximately 200 tokens because it is a pointer not a topic document
+- Its only job is to list what other documents exist and what each contains in one sentence
+- It is loaded at every session start before the question arrives
 - If MEMORY.md grows beyond 200 tokens it becomes a topic document masquerading as an index
-- Growing MEMORY.md wastes mandatory context budget before any question-specific loading has started
-- Any content that belongs in a topic file must be moved to that file not added to MEMORY.md
+- Growing MEMORY.md wastes mandatory context budget before any question-specific loading begins
+- Content that belongs in a topic file must be moved to that file not added to MEMORY.md
 
 Forbidden contradictions:
-- Stating tool_scoping.md has the smallest token budget
-- Stating MEMORY.md can grow freely without affecting session performance
+- Stating that MEMORY.md should contain detailed topic knowledge
+- Stating that MEMORY.md has no token limit
 
 ---
 
+### Question 5
+"What is the mandatory pre-load token budget, what is the per-document breakdown of the 900 tokens, what is the optional post-question maximum, and what is the total maximum across a full session?"
+
+Required concepts:
+- Mandatory pre-load total is approximately 900 tokens
+- The 900 tokens breaks down as tool_scoping.md 300 plus corrections log 400 plus MEMORY.md 200
+- Optional post-question maximum is approximately 700 tokens
+- Total maximum across a full session is approximately 1600 tokens
+
+Forbidden contradictions:
+- Stating mandatory pre-load is more than 900 tokens
+- Stating total maximum is less than 1600 tokens
+
 ## Test result
 
-**Run timestamp:** 2026-04-11 12:31 UTC
-**Model used:** anthropic/claude-sonnet-4
+**Run timestamp:** 2026-04-11 17:47 UTC
+**Model used:** google/gemini-2.0-flash-001
 **Document tested:** kb/architecture/kb_v1_architecture.md
 **Overall result:** PASS
 **Average score:** 100.0/100
 
 ### Question 1 — PASS (100/100)
 
-**Question:** What are the four KB subdirectories in the Oracle Forge project and what type of information belongs in each one?
+**Question:** What are the four KB subdirectories in the Oracle Forge project and what does each one contain?
 
-**Concepts found (7/7):**
-  - [x] kb/architecture/ contains documents about how the agent itself works including memory architecture and tool scoping rules
-  - [x] kb/architecture/ documents change when the agent architecture changes not when datasets change
-  - [x] kb/domain/ contains documents about the data the agent works with including schemas and join key formats and business term definitions
-  - [x] kb/domain/ documents change when datasets are loaded or failure patterns reveal schema misunderstandings
-  - [x] kb/evaluation/ contains documents about how the agent is scored and what the benchmark requires including DAB query format and pass at 1 scoring
-  - [x] kb/corrections/ contains the running structured log of agent failures read at every session start
-  - [x] kb/corrections/log.md is the self-learning loop written by Drivers after every observed failure
+**Concepts found (4/4):**
+  - [x] kb/architecture/ contains documents about how the agent itself works including memory architecture tool scoping and context loading
+  - [x] kb/domain/ contains documents about the data including schemas join keys unstructured fields and business terms
+  - [x] kb/evaluation/ contains documents about scoring and the benchmark including DAB query format and failure categories
+  - [x] kb/corrections/ contains the running structured log of agent failures with entry format query that failed then what was wrong then correct approach
 
 **Actual answer:**
-Based on the document, the four KB subdirectories in the Oracle Forge project are:
+kb/architecture/ contains documents about how the agent works (memory system, tool scoping, context loading). kb/domain/ contains documents about the data (schemas, join keys, business terms). kb/evaluation/ contains documents about scoring and the benchmark. kb/corrections/ contains the running log of agent failures and their fixes, read at every session start.
 
-## kb/architecture/
-Contains documents about how the agent itself works: the memory architecture, tool scoping rules, context loading order, and structural overview. These documents are written for the agent about the agent. They change when the agent architecture changes, not when DAB datasets change.
-
-## kb/domain/
-Contains documents about the data the agent works with: schema descriptions per DAB dataset, join key formats across database systems, unstructured field inventory, and business term definitions. These documents change when datasets are loaded, when new failure patterns reveal schema misunderstandings, or when domain terms are corrected.
-
-## kb/evaluation/
-Contains documents about how the agent is scored and what the benchmark requires: DAB query format, pass@1 scoring method, submission requirements, the four DAB failure categories, and what each failure category looks like in agent behavior.
-
-## kb/corrections/
-Contains `log.md`, which is the self-learning loop - a running structured log of agent failures written by Drivers after every observed agent failure. The agent reads the last 10 entries at session start, and Intelligence Officers prune outdated entries when newer ones supersede them.
-
-**Grader reasoning:** All seven required concepts are clearly present in the actual answer and no forbidden contradictions were found.
+**Grader reasoning:** The answer includes all four required concepts about the KB subdirectories without contradictions.
 
 ---
 
 ### Question 2 — PASS (100/100)
 
-**Question:** An Intelligence Officer wants to add a new document to the KB. What are the exact six steps of the injection test protocol they must follow before committing?
+**Question:** What is the Karpathy method and what are the key rules that govern it?
+
+**Concepts found (8/8):**
+  - [x] The Karpathy discipline is removal not accumulation
+  - [x] Every document must be minimal and precise
+  - [x] Every document must pass an injection test before committing
+  - [x] A document that has not passed an injection test must not be loaded by the agent
+  - [x] Remove everything the LLM already knows from pretraining
+  - [x] Only include content specific to DAB these databases and this agent
+  - [x] A KB that grows without being tested becomes noise that degrades the agent
+  - [x] The test for every sentence is whether the agent reading only that sentence could take the correct action
+
+**Actual answer:**
+The Karpathy method is **removal, not accumulation**. The key rules are:
+
+1.  Every document must be minimal and precise.
+2.  Every document must pass an injection test before committing.
+3.  A document that has not passed an injection test must not be loaded by the agent under any circumstances.
+4.  It shrinks documents by removing what is not proven to work.
+5.  Remove everything the LLM already knows from pretraining. Only include content specific to DAB, these databases, and this agent. Nothing general.
+6.  A KB that grows without being tested becomes noise that degrades the agent rather than helping it.
+7.  The test for every sentence: if the agent read only this sentence with no other context, could it take the correct action? If no — rewrite it or cut it.
+8.  Documents without a passing injection test result are treated as non-existent and must not be loaded by the agent.
+
+**Grader reasoning:** All required concepts are clearly present in the actual answer and there are no forbidden contradictions.
+
+---
+
+### Question 3 — PASS (100/100)
+
+**Question:** What is the six-step injection test protocol and what is the critical constraint about what other documents can be in the context window during the test?
 
 **Concepts found (7/7):**
   - [x] Step 1 copy the full text of the document
   - [x] Step 2 open a completely fresh LLM session with no other context and no system prompt
   - [x] Step 3 paste the document as the only content the LLM has seen
   - [x] Step 4 ask the test question written at the bottom of the document
-  - [x] Step 5 grade the result as PASS if correct and FAIL if wrong or incomplete
+  - [x] Step 5 grade the answer where correct is PASS and wrong or incomplete is FAIL
   - [x] Step 6 write the result to kb/architecture/injection_tests/document_name_test.md
-  - [x] Documents without a test result have not been validated and must not be loaded by the agent
+  - [x] The test cannot be run with other documents in the context window
 
 **Actual answer:**
-According to the injection test protocol in the document, the exact six steps are:
+The six-step injection test protocol is:
 
 1. Copy the full text of the document.
-2. Open a completely fresh LLM session (no other context, no system prompt).
+2. Open a completely fresh LLM session — no other context, no system prompt.
 3. Paste the document as the only content the LLM has seen.
 4. Ask the test question written at the bottom of the document.
 5. Grade: correct answer = PASS. Wrong or incomplete = FAIL.
-6. Write result to kb/architecture/injection_tests/[document_name]_test.md.
+6. Write result to kb/architecture/injection\_tests/[document\_name]\_test.md.
 
-The document emphasizes that "A document that has not been injection-tested must not be loaded by the agent under any circumstances" and "A document without a test result in its test file has not been validated and must not be loaded by the agent."
+The critical constraint is that the test cannot be run with other documents in the context window. The document being tested must be the only thing the model sees.
 
-**Grader reasoning:** All seven required concepts are clearly present in the actual answer with accurate details and no forbidden contradictions are found.
-
----
-
-### Question 3 — PASS (100/100)
-
-**Question:** What is the Karpathy discipline and what is the core difference between this discipline and standard documentation practice?
-
-**Concepts found (8/8):**
-  - [x] The Karpathy discipline is removal not accumulation
-  - [x] Every document must be minimal and precise
-  - [x] Every document must pass an injection test before committing
-  - [x] Standard documentation grows over time by adding more content
-  - [x] The Karpathy discipline requires removing everything the LLM already knows from pretraining
-  - [x] Only include content specific to DAB these databases and this agent
-  - [x] A KB that grows without being tested becomes noise that degrades the agent
-  - [x] The test for every sentence is whether the agent reading only that sentence could take the correct action
-
-**Actual answer:**
-Based on the document, the Karpathy discipline is **removal, not accumulation**. Every document must be minimal and precise, and must pass an injection test before committing.
-
-The core difference between the Karpathy discipline and standard documentation practice is:
-
-- **Standard documentation practice**: grows over time by adding more content
-- **Karpathy method**: does the opposite - it shrinks documents by removing what is not proven to work
-
-The Karpathy method requires removing everything the LLM already knows from pretraining and only including content specific to DAB, these databases, and this agent — nothing general. The principle is that a KB that grows without being tested becomes noise that degrades the agent.
-
-The test for every sentence is: if the agent read only this sentence with no other context, could it take the correct action? If no — rewrite it or cut it.
-
-**Grader reasoning:** All eight required concepts are clearly present in the actual answer with no forbidden contradictions.
+**Grader reasoning:** All required concepts are present, and no forbidden contradictions are found, resulting in a perfect score.
 
 ---
 
 ### Question 4 — PASS (100/100)
 
-**Question:** Which document has the smallest token budget, what is that budget, and why is it deliberately kept that small?
+**Question:** Why is MEMORY.md capped at the smallest token budget, what is its only job, when is it loaded, what happens if it grows beyond that cap, and what should be done with content that does not belong in MEMORY.md?
 
-**Concepts found (9/9):**
-  - [x] MEMORY.md has the smallest token budget
-  - [x] The budget is approximately 200 tokens
-  - [x] MEMORY.md is loaded at every session start before the question arrives
-  - [x] MEMORY.md is a pointer not a topic document
-  - [x] Its only job is to list what other documents exist and what each one contains in one sentence
-  - [x] Every token it consumes comes from the mandatory pre-load budget before any question-specific loading begins
+**Concepts found (6/6):**
+  - [x] MEMORY.md is capped at approximately 200 tokens because it is a pointer not a topic document
+  - [x] Its only job is to list what other documents exist and what each contains in one sentence
+  - [x] It is loaded at every session start before the question arrives
   - [x] If MEMORY.md grows beyond 200 tokens it becomes a topic document masquerading as an index
-  - [x] Growing MEMORY.md wastes mandatory context budget before any question-specific loading has started
-  - [x] Any content that belongs in a topic file must be moved to that file not added to MEMORY.md
+  - [x] Growing MEMORY.md wastes mandatory context budget before any question-specific loading begins
+  - [x] Content that belongs in a topic file must be moved to that file not added to MEMORY.md
 
 **Actual answer:**
-Based on the document, **MEMORY.md** has the smallest token budget at **~200 tokens**.
+Based on the provided document:
 
-It is deliberately kept that small because:
+*   **Why is MEMORY.md capped at the smallest token budget?** It is a pointer, not a topic document. Every token it consumes comes directly out of the mandatory pre-load budget.
+*   **What is its only job?** To list what other documents exist and what each one contains in one sentence.
+*   **When is it loaded?** At every session start before the question arrives.
+*   **What happens if it grows beyond that cap?** It becomes a topic document masquerading as an index, wasting mandatory context budget before any question-specific loading has started.
+*   **What should be done with content that does not belong in MEMORY.md?** It must be moved to the appropriate topic file.
 
-1. **It's a pointer, not a topic document** - Its only job is to list what other documents exist and what each one contains in one sentence
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are found, resulting in a perfect score.
 
-2. **It's loaded at every session start before the question arrives** - Every token it consumes comes directly out of the mandatory pre-load budget before any question-specific loading has begun
+---
 
-3. **Growing beyond ~200 tokens defeats its purpose** - If it grows larger, it starts functioning as a topic document masquerading as an index, wastes mandatory context budget on information that belongs in topic files, and becomes something the agent needs to read carefully rather than scan quickly to decide what to load next
+### Question 5 — PASS (100/100)
 
-The document emphasizes "Keep it small on purpose" and states that any content that belongs in a topic file must be moved to that file, not added to MEMORY.md.
+**Question:** What is the mandatory pre-load token budget, what is the per-document breakdown of the 900 tokens, what is the optional post-question maximum, and what is the total maximum across a full session?
 
-**Grader reasoning:** All nine required concepts are clearly present in the actual answer and no forbidden contradictions were found.
+**Concepts found (4/4):**
+  - [x] Mandatory pre-load total is approximately 900 tokens
+  - [x] The 900 tokens breaks down as tool_scoping.md 300 plus corrections log 400 plus MEMORY.md 200
+  - [x] Optional post-question maximum is approximately 700 tokens
+  - [x] Total maximum across a full session is approximately 1600 tokens
+
+**Actual answer:**
+*   **Mandatory pre-load total:** ~900 tokens.
+*   **Breakdown**: tool\_scoping.md 300 + corrections/log.md 400 + MEMORY.md 200.
+*   **Optional post-question maximum:** ~700 tokens.
+*   **Total maximum across a full session:** ~1,600 tokens.
+
+**Grader reasoning:** All required concepts are present, and no forbidden contradictions were found, resulting in a perfect score.
 
 ---
