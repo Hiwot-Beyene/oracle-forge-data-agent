@@ -4,208 +4,238 @@
 `kb/architecture/tool_scoping.md`
 
 ## Why this test is critical
-tool_scoping.md is the first document loaded at every session start (step 1). If the agent cannot derive correct tool routing from this document alone, every database query is at risk of using the wrong tool or dialect.
+tool_scoping.md is the second mandatory document loaded at every session start. If the agent cannot derive correct tool routing from this document alone, every database query call will go to the wrong tool or use the wrong dialect.
 
 ---
 
 ## Test questions
 
 ### Question 1
-"A user asks a question that requires customer purchase data from PostgreSQL and support ticket counts from MongoDB. Which tools do I call, what dialect does each use, how do I combine the results, and what is the most important rule about cross-database queries?"
+"A query requires customer revenue from PostgreSQL and their support ticket count from MongoDB. Which tools do I call, in what order, and how do I combine the results?"
 
 Required concepts:
-- Call query_db for PostgreSQL using standard SQL dialect
-- Call query_db for MongoDB using aggregation pipeline JSON not SQL syntax
-- Use execute_python to merge the two result sets in Python
-- Do NOT attempt cross-database joins at the SQL level and route sub-queries to each database separately
+- Call query_db for PostgreSQL revenue data
+- Use standard SQL syntax for PostgreSQL
+- Call query_db separately for MongoDB ticket count
+- Use MongoDB aggregation pipeline syntax for MongoDB not SQL
+- Call execute_python to merge the two result sets in Python
+- Never attempt a cross-database join at the SQL level
+- Sub-queries go to each database separately before merging
 
 Forbidden contradictions:
 - Stating to use SQL syntax for MongoDB
-- Stating to use a single cross-database join at the SQL level
-- Stating to use execute_python to run database queries
+- Stating to join across databases at the query level
+- Stating to use a different tool than query_db for database queries
 
 ---
 
 ### Question 2
-"A query against MongoDB returns zero rows. What does a zero-row result mean, what specific causes should I investigate, and what is the correct sequence of actions according to the zero-row rule?"
+"I need to query a DuckDB dataset. What query dialect do I use and what functions are available that differ from standard PostgreSQL SQL?"
 
 Required concepts:
-- Do not return the zero-row result to the user
-- Do not call return_answer with the zero-row result
-- A zero-row result is a failure signal not an answer
-- Investigate the cause by checking join key format mismatches across databases
-- Check whether the correct query dialect was used such as SQL syntax sent to MongoDB
-- Adjust the approach and retry using execute_python to merge results from separate database calls
-- Only call return_answer after the retried result is verified and non-suspicious
+- Use analytical SQL with DuckDB extensions
+- DuckDB supports UNNEST
+- DuckDB supports LIST_AGG
+- DuckDB supports STRUCT
+- DuckDB supports columnar functions
+- Do not use PostgreSQL-specific syntax in DuckDB
+- Database file path is defined in the dataset db_config.yaml
 
 Forbidden contradictions:
-- Stating to return the zero-row result as the answer
-- Stating to call return_answer with the zero-row result
+- Stating DuckDB uses MongoDB aggregation pipeline syntax
+- Stating DuckDB uses identical syntax to PostgreSQL with no differences
 
 ---
 
 ### Question 3
-"What is the tool scoping philosophy, what specific tool usage prohibitions does it impose, and why does the agent use separate database tools instead of one general query tool?"
+"What is the purpose of the return_answer tool, when exactly should I use it, and what should I never do with it?"
 
 Required concepts:
-- Each tool has a single tight responsibility
-- A tool that does one thing precisely is more reliable than a tool handling multiple database types in one call
-- Never use execute_python to run database queries and never use query_db to do data transformation
-- Overlap between tools causes agent confusion and harder-to-diagnose failures
+- return_answer terminates the agent loop
+- return_answer records the final answer
+- It is the last tool called in any successful agent run
+- Use it only when the answer is verified and complete
+- Do not call return_answer with an unverified or suspicious result
 
 Forbidden contradictions:
-- Stating that one general tool is preferred
-- Stating that execute_python should be used for database queries
+- Stating return_answer executes database queries
+- Stating return_answer can be called at any point during execution
+- Stating return_answer is optional
 
 ---
 
 ### Question 4
-"What are the four agent tools available in every session and when should each be used?"
+"A query returns zero rows. According to the tool scoping document, what is the exact sequence of steps I must follow?"
 
 Required concepts:
-- query_db executes read-only queries against any configured database for primary data retrieval
-- list_db lists available databases and their tables or collections for schema discovery
-- execute_python runs Python code in a Docker sandbox for data transformation and cross-DB result merging
-- return_answer terminates the agent loop and records the final answer only when the answer is verified and complete
+- Do not return the zero-row result to the user
+- Do not call return_answer with the zero-row result
+- Investigate the cause of the failure
+- Check whether join keys have different formats across databases
+- Check whether the correct database tool was called for the database type
+- Adjust the approach and resolve the identified cause
+- Use execute_python to merge results from separate database calls rather than attempting cross-database joins
+- Only call return_answer after the retried result is verified and non-suspicious
 
 Forbidden contradictions:
-- Stating that execute_python should be used for database queries
-- Stating that return_answer can be called with an unverified result
+- Stating to return the zero-row result as the final answer
+- Stating cross-database SQL joins are acceptable
+- Stating return_answer should be called immediately after zero rows
 
 ---
 
-### Question 5
-"What query dialect and special syntax considerations apply to SQLite versus DuckDB?"
-
-Required concepts:
-- SQLite uses SQLite SQL dialect
-- SQLite has no JSON operators and must use json_extract instead
-- SQLite has no ILIKE and must use LOWER col LIKE LOWER pattern instead
-- DuckDB uses analytical SQL with DuckDB extensions
-- DuckDB supports UNNEST LIST_AGG STRUCT and columnar functions
-- Do not use PostgreSQL-specific syntax in DuckDB
-
-Forbidden contradictions:
-- Stating that SQLite supports JSON operators like arrow notation
-- Stating that SQLite supports ILIKE
-- Stating to use PostgreSQL syntax in DuckDB
-
 ## Test result
 
-**Run timestamp:** 2026-04-11 17:47 UTC
-**Model used:** google/gemini-2.0-flash-001
+**Run timestamp:** 2026-04-11 12:29 UTC
+**Model used:** anthropic/claude-sonnet-4
 **Document tested:** kb/architecture/tool_scoping.md
 **Overall result:** PASS
 **Average score:** 100.0/100
 
 ### Question 1 — PASS (100/100)
 
-**Question:** A user asks a question that requires customer purchase data from PostgreSQL and support ticket counts from MongoDB. Which tools do I call, what dialect does each use, how do I combine the results, and what is the most important rule about cross-database queries?
+**Question:** A query requires customer revenue from PostgreSQL and their support ticket count from MongoDB. Which tools do I call, in what order, and how do I combine the results?
 
-**Concepts found (4/4):**
-  - [x] Call query_db for PostgreSQL using standard SQL dialect
-  - [x] Call query_db for MongoDB using aggregation pipeline JSON not SQL syntax
-  - [x] Use execute_python to merge the two result sets in Python
-  - [x] Do NOT attempt cross-database joins at the SQL level and route sub-queries to each database separately
+**Concepts found (7/7):**
+  - [x] Call query_db for PostgreSQL revenue data
+  - [x] Use standard SQL syntax for PostgreSQL
+  - [x] Call query_db separately for MongoDB ticket count
+  - [x] Use MongoDB aggregation pipeline syntax for MongoDB not SQL
+  - [x] Call execute_python to merge the two result sets in Python
+  - [x] Never attempt a cross-database join at the SQL level
+  - [x] Sub-queries go to each database separately before merging
 
 **Actual answer:**
-1.  Call `query_db` for the PostgreSQL purchase data. It uses Standard SQL (PostgreSQL 17.9) as its query dialect.
-2.  Call `query_db` for the MongoDB support ticket counts. It uses MongoDB aggregation pipeline JSON as its query dialect.
-3.  Use `execute_python` to merge the two result sets in Python.
-4.  The most important rule about cross-database queries is: Do NOT attempt cross-database joins at the SQL level.
+Based on the document, here's the correct approach for this cross-database query:
 
-**Grader reasoning:** All required concepts are present and no forbidden contradictions are found, resulting in a perfect score.
+**Tools to call and order:**
+
+1. **`query_db`** - Get customer revenue from PostgreSQL
+   - Use standard SQL (PostgreSQL 17.9) syntax
+   - Query the revenue data from the appropriate tables
+
+2. **`query_db`** - Get support ticket count from MongoDB  
+   - Use MongoDB aggregation pipeline JSON syntax (NOT SQL)
+   - Structure as pipeline arrays: `[{"$match": {...}}, {"$group": {...}}]`
+
+3. **`execute_python`** - Merge the results
+   - Fetch results from both database calls into Python variables
+   - Perform the data merging/joining in Python code
+   - Handle any join key format differences (e.g., integer IDs in PostgreSQL vs string IDs in MongoDB)
+
+4. **`return_answer`** - Return the final merged result
+   - Only call this after verifying the result is complete and non-suspicious
+
+**Key points:**
+- Do NOT attempt cross-database joins at the SQL level
+- Use separate `query_db` calls for each database type with their respective query dialects
+- Always merge results using `execute_python` rather than trying to join across databases in SQL
+- Never use `execute_python` to run database queries - only use it for data transformation and merging
+
+**Grader reasoning:** All seven required concepts are clearly present and no forbidden contradictions were found in the answer.
 
 ---
 
 ### Question 2 — PASS (100/100)
 
-**Question:** A query against MongoDB returns zero rows. What does a zero-row result mean, what specific causes should I investigate, and what is the correct sequence of actions according to the zero-row rule?
+**Question:** I need to query a DuckDB dataset. What query dialect do I use and what functions are available that differ from standard PostgreSQL SQL?
 
 **Concepts found (7/7):**
-  - [x] Do not return the zero-row result to the user
-  - [x] Do not call return_answer with the zero-row result
-  - [x] A zero-row result is a failure signal not an answer
-  - [x] Investigate the cause by checking join key format mismatches across databases
-  - [x] Check whether the correct query dialect was used such as SQL syntax sent to MongoDB
-  - [x] Adjust the approach and retry using execute_python to merge results from separate database calls
-  - [x] Only call return_answer after the retried result is verified and non-suspicious
+  - [x] Use analytical SQL with DuckDB extensions
+  - [x] DuckDB supports UNNEST
+  - [x] DuckDB supports LIST_AGG
+  - [x] DuckDB supports STRUCT
+  - [x] DuckDB supports columnar functions
+  - [x] Do not use PostgreSQL-specific syntax in DuckDB
+  - [x] Database file path is defined in the dataset db_config.yaml
 
 **Actual answer:**
-A zero-row result is a failure signal, not an answer. You should investigate the following potential causes: check whether join keys have different formats across databases, and check whether the correct database tool was called for the database type (e.g. SQL syntax was incorrectly sent to MongoDB).
+Based on the document, for querying a DuckDB dataset:
 
-The correct sequence of actions is:
-1. Do not return the zero-row result to the user and do not call `return_answer` with it.
-2. Investigate the cause: check whether join keys have different formats across databases (e.g. integer in PostgreSQL vs "CUST-00123" string in MongoDB). Check whether the correct database tool was called for the database type (e.g. SQL syntax sent to MongoDB).
-3. Adjust the approach — resolve the join key format mismatch or switch to the correct tool.
-4. Retry using `execute_python` to merge results from separate database calls rather than attempting cross-database joins at the SQL level.
-5. Only call `return_answer` after the retried result is verified and non-suspicious.
+**Query dialect:** Analytical SQL with DuckDB extensions
 
-**Grader reasoning:** All required concepts are clearly present in the actual answer, and there are no forbidden contradictions.
+**Tool to use:** `query_db`
+
+**Functions available that differ from standard PostgreSQL SQL:**
+- `UNNEST`
+- `LIST_AGG` 
+- `STRUCT`
+- Columnar functions (specific functions not detailed in the document)
+
+**Additional notes:**
+- DuckDB is efficient for aggregations over large datasets
+- It's file-based with no server required
+- The database file path is defined in db_config.yaml
+- You should use DuckDB-native functions and NOT use PostgreSQL-specific syntax
+
+The document emphasizes using DuckDB's native analytical capabilities rather than trying to apply PostgreSQL syntax.
+
+**Grader reasoning:** All seven required concepts are clearly present in the actual answer and no forbidden contradictions were found.
 
 ---
 
 ### Question 3 — PASS (100/100)
 
-**Question:** What is the tool scoping philosophy, what specific tool usage prohibitions does it impose, and why does the agent use separate database tools instead of one general query tool?
+**Question:** What is the purpose of the return_answer tool, when exactly should I use it, and what should I never do with it?
 
-**Concepts found (4/4):**
-  - [x] Each tool has a single tight responsibility
-  - [x] Never use execute_python to run database queries and never use query_db to do data transformation
-  - [x] A tool that does one thing precisely is more reliable than a tool handling multiple database types in one call
-  - [x] Overlap between tools causes agent confusion and harder-to-diagnose failures
+**Concepts found (5/5):**
+  - [x] return_answer terminates the agent loop
+  - [x] return_answer records the final answer
+  - [x] It is the last tool called in any successful agent run
+  - [x] Use it only when the answer is verified and complete
+  - [x] Do not call return_answer with an unverified or suspicious result
 
 **Actual answer:**
-According to the document, the tool scoping philosophy is that each tool has a single, tight responsibility.
+Based on the document, here is the information about the `return_answer` tool:
 
-Specific tool usage prohibitions it imposes are:
-*   Never use `execute_python` to run database queries – use `query_db` for that.
-*   Never use `query_db` to do data transformation – use `execute_python` for that.
+## Purpose
+The `return_answer` tool is used to "terminate the agent loop and record the final answer." It is described as "the last tool called in any successful agent run."
 
-The agent uses separate database tools because a tool that does one thing precisely is more reliable than a tool that tries to handle multiple database types in one call. Overlap between tools causes agent confusion and harder-to-diagnose failures.
+## When exactly to use it
+- Only when "the answer is verified and complete"
+- After you have a verified and non-suspicious result
+- As the final step in a successful agent execution
 
-**Grader reasoning:** All required concepts are present and there are no forbidden contradictions, therefore the score is 100.
+## What you should never do with it
+- **Never call it with an unverified or suspicious result**
+- **Never call it with zero-row results** - the document explicitly states "Do not call `return_answer` with the zero-row result" because "A zero-row result is a failure signal, not an answer"
+- **Never return zero-row results to the user** - you must investigate and retry first
+
+The document emphasizes that if you get zero rows or suspicious results, you should investigate the cause, adjust your approach, retry (potentially using `execute_python` to merge results from separate database calls), and only call `return_answer` after the retried result is verified and non-suspicious.
+
+**Grader reasoning:** All five required concepts are clearly present in the actual answer with no forbidden contradictions found.
 
 ---
 
 ### Question 4 — PASS (100/100)
 
-**Question:** What are the four agent tools available in every session and when should each be used?
+**Question:** A query returns zero rows. According to the tool scoping document, what is the exact sequence of steps I must follow?
 
-**Concepts found (4/4):**
-  - [x] query_db executes read-only queries against any configured database for primary data retrieval
-  - [x] list_db lists available databases and their tables or collections for schema discovery
-  - [x] execute_python runs Python code in a Docker sandbox for data transformation and cross-DB result merging
-  - [x] return_answer terminates the agent loop and records the final answer only when the answer is verified and complete
-
-**Actual answer:**
-The four agent tools available in every session are:
-
-*   `query_db`: Used for primary data retrieval by executing read-only queries against any configured database.
-*   `list_db`: Used for schema discovery at session start by listing available databases and their tables/collections.
-*   `execute_python`: Used for data transformation and cross-DB result merging by running Python code in a Docker sandbox.
-*   `return_answer`: Used when the answer is verified and complete to terminate the agent loop and record the final answer.
-
-**Grader reasoning:** All required concepts are clearly present and no forbidden contradictions were found.
-
----
-
-### Question 5 — PASS (100/100)
-
-**Question:** What query dialect and special syntax considerations apply to SQLite versus DuckDB?
-
-**Concepts found (6/6):**
-  - [x] SQLite uses SQLite SQL dialect
-  - [x] SQLite has no JSON operators and must use json_extract instead
-  - [x] SQLite has no ILIKE and must use LOWER col LIKE LOWER pattern instead
-  - [x] DuckDB uses analytical SQL with DuckDB extensions
-  - [x] DuckDB supports UNNEST LIST_AGG STRUCT and columnar functions
-  - [x] Do not use PostgreSQL-specific syntax in DuckDB
+**Concepts found (8/8):**
+  - [x] Do not return the zero-row result to the user
+  - [x] Do not call return_answer with the zero-row result
+  - [x] Investigate the cause of the failure
+  - [x] Check whether join keys have different formats across databases
+  - [x] Check whether the correct database tool was called for the database type
+  - [x] Adjust the approach and resolve the identified cause
+  - [x] Use execute_python to merge results from separate database calls rather than attempting cross-database joins
+  - [x] Only call return_answer after the retried result is verified and non-suspicious
 
 **Actual answer:**
-SQLite: SQLite SQL dialect. No JSON operators — use `json_extract(column, '$.field')` instead. No `ILIKE` — use `LOWER(col) LIKE LOWER(?)`.
-DuckDB: Analytical SQL with DuckDB extensions dialect. Supports `UNNEST`, `LIST_AGG`, `STRUCT`, and columnar functions. Use DuckDB-native functions — do not use PostgreSQL-specific syntax.
+According to the tool scoping document, when a query returns zero rows, the exact sequence of steps you must follow is:
 
-**Grader reasoning:** All required concepts are present and no forbidden contradictions are present.
+1. **Do not return the zero-row result to the user and do not call `return_answer` with it.**
+
+2. **Investigate the cause:** check whether join keys have different formats across databases (e.g. integer in PostgreSQL vs "CUST-00123" string in MongoDB). Check whether the correct database tool was called for the database type (e.g. SQL syntax sent to MongoDB).
+
+3. **Adjust the approach** — resolve the join key format mismatch or switch to the correct tool.
+
+4. **Retry using `execute_python` to merge results from separate database calls** rather than attempting cross-database joins at the SQL level.
+
+5. **Only call `return_answer` after the retried result is verified and non-suspicious.**
+
+The document emphasizes that a zero-row result is a failure signal, not an answer, and must not be returned to the user or passed to `return_answer`.
+
+**Grader reasoning:** All required concepts are clearly present in the actual answer and no forbidden contradictions were found.
 
 ---
