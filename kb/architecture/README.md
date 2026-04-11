@@ -18,16 +18,18 @@ _Status: v1.1 | Team Verified_
 | `openai_table_enrichment.md`               | Codex-powered schema enrichment              |
 | `oracle_forge_mapping.md`                  | Implementation mapping to Oracle Forge       |
 
-**Usage in Agent:** All documents in this directory are injected into the agent's
-system prompt at session start via `agent/context_builder.py`. The agent does not
-need to request them — they are part of its baseline knowledge.
+**Usage in Agent:** All documents in this directory are injected into the agent's baseline context. They define the architectural "ground truth" that governs tool selection and memory management.
 
-**Verification:** Every document has passed an injection test (see `injection_tests/`
-directory). Protocol: (1) fresh LLM session, (2) document loaded as only context,
-(3) specific question asked, (4) answer matches expected.
+**Verification (The Karpathy Method):**
+Every document must pass a structured **Injection Test** before it is considered valid.
+- **Protocol**: 
+    1. Fresh LLM session (no baseline context).
+    2. Paste document as the ONLY information.
+    3. Run `python kb/architecture/injection_tests/run_injection_tests.py --doc <doc_name>`.
+    4. Grader requires **100/100** score (all concepts present, no contradictions).
+- **Automation**: Test rubrics and results are stored in the injection_tests/
 
-**Maintenance:** Updates by Intelligence Officers only. Mob session review required
-before modification. All changes recorded in `CHANGELOG.md`.
+**Maintenance:** Knowledge is a garden, not a dumpster. Pruning is mandatory. Remove pre-training generalities; keep only DAB-specific precision.
 
 ---
 
@@ -51,5 +53,5 @@ kb/
 │       ├── claude_autodream_test.md
 │       ├── openai_six_layers_test.md
 │       ├── openai_table_enrichment_test.md
-│       └── test_combined.md
+│       └── architecture_system_overview_test.md
 ```

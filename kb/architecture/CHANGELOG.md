@@ -2,15 +2,17 @@
 
 All notable architectural changes and document migrations will be documented in this file.
 
-## [1.1.0] - 2026-04-11
+## [1.2.0] - 2026-04-11
+### Added
+- **Automated Verification**: Integrated `run_injection_tests.py` for rubric-based document grading.
+- **Rubric Test Specs**: Replaced manual templates with structured "Required Concept" rubrics in `injection_tests/`.
+- **DAB Failure Scenarios**: Added specific Join Key (PG/Mongo) and Business Term (Active Customer) examples.
+- **Codebase Precision**: Added specific `src/` paths and line counts (e.g., `QueryEngine.ts`) from reference architecture leaks.
+
 ### Changed
-- Modularized `kb_v1_architecture.md` into separate files:
-    - `architecture_system_overview.md`
-    - `claude_memory_layers.md`
-    - `claude_tool_scoping.md`
-    - `claude_autodream.md`
-    - `openai_six_layers.md`
-    - `openai_table_enrichment.md`
-    - `oracle_forge_mapping.md`
-- Replaced monolithic index with modular `README.md`.
-- Removed redundant empty files: `claude_code_memory.md`, `tool_scoping.md`, `openai_agent_context.md`.
+- Unified modular documents in Agent 1 with the technical depth of Agent 2's master files.
+- Upgraded `README.md` to enforce the Karpathy Method (minimum content, maximum precision).
+- Synchronized token budgets across system overview and index documents.
+
+### Removed
+- Redundant manual test template `test_combined.md`.
