@@ -14,3 +14,5 @@ _Status: v1.1 | Team Verified_
 | Institutional Knowledge | Domain terms + join key glossary                     | `kb/domain/domain_terms.md`           |
 | Learning Memory         | Corrections log                                      | `kb/corrections/kb_v3_corrections.md` |
 | Runtime Context         | Direct DB query tools                                | `agent/tools.yaml` (MCP config)       |
+
+---

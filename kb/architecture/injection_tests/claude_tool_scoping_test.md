@@ -1,75 +1,125 @@
-# INJECTION TEST: claude_tool_scoping.md
+# Injection test — claude_tool_scoping.md
 
-**DATE:** 2026-04-11
-**VERSION:** v1.1
-**DOCUMENT TESTED:** `kb/architecture/claude_tool_scoping.md`
+## Document under test
+`kb/architecture/claude_tool_scoping.md`
 
-**CONTEXT SETUP:**
-- Fresh LLM session
-- Single document loaded: `claude_tool_scoping.md`
-- No other context provided
+## Test questions
 
----
+### Question 1
+"Why does the agent use separate tools per database type instead of one general tool?"
 
-### TEST QUESTION 1:
-"What are the four tool categories in Claude Code's architecture?"
+Required concepts:
+- Each tool has a single tight responsibility
+- A tool with one precise purpose is more reliable
+- When a tool fails the agent knows exactly which one and why
+- Tight domain boundaries make failures diagnosable
+- Tight domain boundaries make failures recoverable
 
-**EXPECTED ANSWER (from document):**
-1. **File System Tools** (`read_file`, `write_file`, `list_directory`, `search_content`)
-2. **Code Execution Tools** (`run_terminal`, `run_python`, `run_tests`)
-3. **Git Tools** (`git_status`, `git_diff`, `git_commit`, `git_branch`)
-4. **External Tools** (`web_search`, `web_fetch`, `api_call`)
-
-**ACTUAL LLM RESPONSE:**
-[Copy full response here]
-
-**PASS/FAIL:** [PASS if all four categories identified with at least one example each]
+Forbidden contradictions:
+- Stating fewer tools are better for reliability
 
 ---
 
-### TEST QUESTION 2:
-"According to the 'Tool First' design rule, should a DAB agent generate raw SQL queries?"
+### Question 2
+"What is the Zero-Row Rule and what three things must the agent check before reporting zero rows?"
 
-**EXPECTED ANSWER (from document):**
-No. The agent should select tools from a manifest, not generate raw shell commands or raw SQL. For DAB, this means using named MCP Toolbox tools like `query_postgres_[dataset]` rather than having the LLM write SQL strings directly.
+Required concepts:
+- Do not return zero-row result to user without investigation
+- Check join keys (int vs string, padding)
+- Check filter conditions (restrictive dates/status)
+- Check table selection (correct source of truth)
 
-**ACTUAL LLM RESPONSE:**
-[Copy full response here]
-
-**PASS/FAIL:** [PASS if answer states agent should use named tools, not raw SQL]
-
----
-
-### TEST QUESTION 3:
-"What are the three properties every Claude Code tool must have?"
-
-**EXPECTED ANSWER (from document):**
-1. **Tight domain boundaries** (one tool does one thing well)
-2. **Explicit preconditions** (what must be true before calling)
-3. **Clear error semantics** (what failure means and how to recover)
-
-**ACTUAL LLM RESPONSE:**
-[Copy full response here]
-
-**PASS/FAIL:** [PASS if all three properties correctly identified]
+Forbidden contradictions:
+- Stating zero rows should be reported immediately
 
 ---
 
-### TEST QUESTION 4:
-"What are the four required MCP tools for the DAB agent?"
+### Question 3
+"What are the Cross-Database Merge Protocols when a query spans two different database engines?"
 
-**EXPECTED ANSWER (from document):**
-1. `query_postgres_[dataset]` - One tool per PostgreSQL database
-2. `query_mongo_[collection]` - One tool per MongoDB collection
-3. `extract_structured_text` - Unstructured field parser (Week 3 module)
-4. `resolve_join_key` - Format normalizer for cross-DB joins
+Required concepts:
+- Route sub-queries to each database separately
+- Fetch raw results into Python variables
+- Merge results using execute_python
+- Do NOT attempt cross-database joins at the SQL level
 
-**ACTUAL LLM RESPONSE:**
-[Copy full response here]
-
-**PASS/FAIL:** [PASS if all four tools identified with their purposes]
+Forbidden contradictions:
+- Suggesting SQL-level joins across database engines are allowed
 
 ---
 
-**FINAL RESULT:** [PASS/FAIL]
-**NOTES:** [Any observations about LLM comprehension]
+## Test result
+
+**Run timestamp:** 2026-04-11 16:42 UTC
+**Document:** tool_scoping
+### Q1: 100/100
+**Concepts found:**
+  - [x] Each tool has a single tight responsibility
+  - [x] A tool with one precise purpose is more reliable
+  - [x] When a tool fails the agent knows exactly which one and why
+  - [x] Tight domain boundaries make failures diagnosable
+  - [x] Tight domain boundaries make failures recoverable
+**Concepts missing:**
+**Actual answer:**
+Based on the document, the agent uses separate tools per database type instead of one general tool because of the **Core Philosophy: Tight Domain Boundaries**.
+
+The key reasons are:
+
+1. **Reliability**: A tool with one precise purpose is more reliable than a tool doing multiple things loosely.
+
+2. **Diagnosability**: When a tool fails, the agent knows exactly which one and why. Tight domain boundaries make failures diagnosable.
+
+3. **Recoverability**: Tight domain boundaries make failures recoverable — the agent knows exactly what to fix.
+
+The document emphasizes that "Each tool has a **single tight responsibility**. A tool that does one thing precisely is more reliable than a tool trying to do multiple things loosely."
+
+Additionally, using named tools (rather than raw SQL execution) enables:
+- **Query tracing**: Essential for the evaluation harness
+- **Automatic translation**: Handles PostgreSQL vs. SQLite vs. DuckDB dialects  
+- **Failure recovery**: The tool returns structured errors, enabling the agent to auto-correct
+
+This is why the Oracle Forge DAB engine uses separate tools per database type (like `query_postgres_[dataset]` and `query_mongo_[collection]`) rather than one general database tool.
+**Grader reasoning:** All five required concepts are explicitly present in the answer with direct quotes and clear explanations, and no forbidden contradictions are found.
+---
+### Q2: 100/100
+**Concepts found:**
+  - [x] Do not return zero-row result to user without investigation
+  - [x] Check join keys (int vs string, padding)
+  - [x] Check filter conditions (restrictive dates/status)
+  - [x] Check table selection (correct source of truth)
+**Concepts missing:**
+**Actual answer:**
+Based on the document, the Zero-Row Rule is:
+
+**"Do not return a zero-row result to the user without investigation."**
+
+When a query returns no rows, the agent must check these three things before reporting zero rows:
+
+1. **Check Join Keys**: Verify if types match (e.g., int vs string) or if padding is needed.
+
+2. **Check Filter Conditions**: Verify if dates or status codes were too restrictive.
+
+3. **Check Table Selection**: Ensure the correct "source of truth" table was picked.
+
+Only after these checks fail to find an error can the agent report zero rows to the user.
+**Grader reasoning:** All four required concepts are clearly present in the answer with specific details matching the checklist, and no forbidden contradictions exist.
+---
+### Q3: 100/100
+**Concepts found:**
+  - [x] Route sub-queries to each database separately
+  - [x] Fetch raw results into Python variables
+  - [x] Merge results using execute_python
+  - [x] Do NOT attempt cross-database joins at the SQL level
+**Concepts missing:**
+**Actual answer:**
+According to the document, when a query spans two different database engines (e.g., PostgreSQL and MongoDB), the Cross-Database Merge Protocols are:
+
+1. **Separate Queries:** Route sub-queries to each database separately via the designated tool.
+
+2. **Fetch Locally:** Fetch the raw results from each into Python variables.
+
+3. **No SQL Joins:** Merge results using `execute_python`. **Do NOT attempt cross-database joins at the SQL level.**
+
+4. **Finalize:** Only after merging and validating python-side should the agent return the final answer.
+**Grader reasoning:** All four required concepts are clearly present in the answer and no forbidden contradictions exist.
+---

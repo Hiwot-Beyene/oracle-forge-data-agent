@@ -1,99 +1,126 @@
-# INJECTION TEST: openai_six_layers.md
+# Injection test — openai_six_layers.md
 
-**DATE:** 2026-04-11
-**VERSION:** v1.1
-**DOCUMENT TESTED:** `kb/architecture/openai_six_layers.md`
+## Document under test
+`kb/architecture/openai_six_layers.md`
 
-**CONTEXT SETUP:**
-- Fresh LLM session
-- Single document loaded: `openai_six_layers.md`
-- No other context provided
+## Test questions
 
----
+### Question 1
+"What is Layer 5 in OpenAI's six-layer architecture and what is the Oracle Forge equivalent?"
 
-### TEST QUESTION 1:
-"List all six layers of OpenAI's data agent context architecture in order."
+Required concepts:
+- Layer 5 is the Learning Memory (self-correction loop)
+- Stores corrections and nuances from previous conversations
+- Performance: 22 minutes dropped to 1:22 with memory
+- Oracle Forge equivalent is kb/corrections/log.md
+- Reads the last 10 entries at session start
 
-**EXPECTED ANSWER (from document):**
-1. **Raw Schema**
-2. **Table Relationships**
-3. **Column Semantics**
-4. **Query Patterns**
-5. **Institutional Knowledge**
-6. **User Preferences**
-
-**ACTUAL LLM RESPONSE:**
-[Copy full response here]
-
-**PASS/FAIL:** [PASS if all six layers in correct order]
+Forbidden contradictions:
+- Stating Layer 5 is human-curated documentation
 
 ---
 
-### TEST QUESTION 2:
-"Which layer is described as the 'hardest sub-problem' by OpenAI's writeup?"
+### Question 2
+"How does the agent handle a join between PostgreSQL and MongoDB according to the DAB failure scenarios?"
 
-**EXPECTED ANSWER (from document):**
-Layer 3: **Column Semantics** (table enrichment)
+Required concepts:
+- PostgreSQL uses integers for IDs
+- MongoDB uses strings (e.g., CUST-00123)
+- Layer 5 must document zero-padding or formatting rules
+- Problem is a Join Key Mismatch
 
-**ACTUAL LLM RESPONSE:**
-[Copy full response here]
-
-**PASS/FAIL:** [PASS if answer identifies Column Semantics or Layer 3]
-
----
-
-### TEST QUESTION 3:
-"What is the '70,000 table problem'?"
-
-**EXPECTED ANSWER (from document):**
-OpenAI's data agent operates across 70,000+ tables in their internal data warehouse. Without the six-layer architecture, the agent cannot efficiently navigate this scale—it would brute-force search all tables for every query. The layers enable navigation from schema → semantics → patterns efficiently.
-
-**ACTUAL LLM RESPONSE:**
-[Copy full response here]
-
-**PASS/FAIL:** [PASS if answer references both the 70,000+ table scale and the need for layered navigation]
+Forbidden contradictions:
+- Stating both use identical ID formats
 
 ---
 
-### TEST QUESTION 4:
-"Which layers are REQUIRED for the DAB agent in V1, and which is deferred to V2?"
+### Question 3
+"What is the Closed-Loop Self-Correction Pattern and how does it differ from error handling?"
 
-**EXPECTED ANSWER (from document):**
-- **Required V1:** Layers 1-5 (Raw Schema through Institutional Knowledge)
-- **Deferred V2:** Layer 6 (User Preferences)
+Required concepts:
+- Error handling reacts to exceptions raised by the system
+- Self-correction evaluates reasoning quality even when no exception is raised
+- Catches plausible but wrong answers before returning
 
-**ACTUAL LLM RESPONSE:**
-[Copy full response here]
-
-**PASS/FAIL:** [PASS if correctly distinguishes V1 requirements from V2 deferral]
-
----
-
-### TEST QUESTION 5:
-"A DAB query asks for 'churned customers in Q3.' Which layer provides the definition that churn means 'no purchase in 90 days' rather than 'no purchase in 30 days'?"
-
-**EXPECTED ANSWER (from document):**
-Layer 5: **Institutional Knowledge**
-
-**ACTUAL LLM RESPONSE:**
-[Copy full response here]
-
-**PASS/FAIL:** [PASS if answer identifies Layer 5 or Institutional Knowledge]
+Forbidden contradictions:
+- Stating self-correction is identical to error handling
 
 ---
 
-### TEST QUESTION 6:
-"How does DAB's scale (12 datasets) compare to OpenAI's scale (70,000 tables), and why does the architecture still apply?"
+## Test result
 
-**EXPECTED ANSWER (from document):**
-DAB is easier (12 datasets vs. 70,000 tables) but the architecture still applies because the agent will still fail on ill-formatted join keys and domain terms without layers 3-5. The problem is smaller but the failure modes are identical.
+**Run timestamp:** 2026-04-11 16:42 UTC
+**Document:** openai_context
+### Q1: 100/100
+**Concepts found:**
+  - [x] Layer 5 is the Learning Memory (self-correction loop)
+  - [x] Stores corrections and nuances from previous conversations
+  - [x] Performance: 22 minutes dropped to 1:22 with memory
+  - [x] Oracle Forge equivalent is kb/corrections/log.md
+  - [x] Reads the last 10 entries at session start
+**Concepts missing:**
+**Actual answer:**
+Based on the document, Layer 5 in OpenAI's six-layer architecture is **Learning Memory (self-correction loop)**.
 
-**ACTUAL LLM RESPONSE:**
-[Copy full response here]
+**What Layer 5 provides:**
+- Stores corrections and nuances from previous conversations 
+- Applies them automatically to future requests
+- Reads the last 10 entries at session start
 
-**PASS/FAIL:** [PASS if answer acknowledges scale difference but confirms architecture relevance]
+**Oracle Forge equivalent:**
+The Oracle Forge equivalent is **Learning Memory (self-correction loop)** implemented via `kb/corrections/log.md` (which reads the last 10 entries at session start).
 
+**Performance impact:** 
+The document notes that OpenAI found a query taking 22 minutes without memory dropped to just 1 minute 22 seconds with the self-correction loop enabled.
+**Grader reasoning:** All five required concepts are clearly and explicitly present in the answer with no forbidden contradictions.
 ---
+### Q2: 100/100
+**Concepts found:**
+  - [x] PostgreSQL uses integers for IDs
+  - [x] MongoDB uses strings (e.g., CUST-00123)
+  - [x] Layer 5 must document zero-padding or formatting rules
+  - [x] Problem is a Join Key Mismatch
+**Concepts missing:**
+**Actual answer:**
+According to the DAB failure scenarios section in the document, the agent handles joins between PostgreSQL and MongoDB by addressing the **Join Key Mismatch** issue through Layer 5 (Learning Memory).
 
-**FINAL RESULT:** [PASS/FAIL]
-**NOTES:** [Any observations about LLM comprehension]
+Specifically:
+
+- **The Problem**: PostgreSQL uses integers for join keys, while MongoDB uses strings (e.g., `CUST-00123`)
+- **The Solution**: Layer 5 (Learning Memory) must document the zero-padding or formatting rule needed to properly match keys between the two systems
+
+The document indicates this is handled through the Learning Memory system (implemented via `kb/corrections/log.md`), which stores corrections and formatting rules from previous conversations and applies them automatically to future requests. This allows the agent to learn the proper key formatting transformations needed to successfully join data between PostgreSQL's integer keys and MongoDB's string-based keys.
+**Grader reasoning:** All four required concepts are clearly present in the answer and no forbidden contradictions were found.
+---
+### Q3: 100/100
+**Concepts found:**
+  - [x] Error handling reacts to exceptions raised by the system
+  - [x] Self-correction evaluates reasoning quality even when no exception is raised
+  - [x] Catches plausible but wrong answers before returning
+**Concepts missing:**
+**Actual answer:**
+Based on the document, the Closed-Loop Self-Correction Pattern is a quality evaluation mechanism that differs fundamentally from traditional error handling in the following ways:
+
+## What it IS:
+- **Quality Evaluation:** The pattern evaluates the quality of the agent's own reasoning even when no system exception is raised
+- **Proactive Checking:** It checks if results are plausible before returning them, even when the answer appears correct
+- **Implemented via:** `self_corrector.py` in the system
+
+## How it Differs from Error Handling:
+
+**Error Handling:**
+- Reacts to exceptions raised by the system
+- Only activates when something breaks or fails
+- Handles technical failures and system errors
+
+**Self-Correction Pattern:**
+- Evaluates reasoning quality regardless of system exceptions
+- Catches scenarios where "an answer that looks correct but uses the wrong table will not trigger an exception"
+- Focuses on logical correctness rather than technical failures
+
+## The Key Rule:
+The document emphasizes that an answer using the wrong data source can appear completely valid from a technical standpoint (no errors thrown), but be fundamentally incorrect. The self-correction pattern catches this by evaluating whether the result makes sense contextually before delivering it to the user.
+
+This pattern is part of Layer 5 (Learning Memory) in the six-layer architecture and contributes to significant performance improvements - the document notes query times dropped from 22 minutes to 1 minute 22 seconds when this self-correction loop was enabled.
+**Grader reasoning:** All three required concepts are clearly present in the answer with explicit explanations of how error handling reacts to system exceptions, how self-correction evaluates quality without exceptions, and how it catches plausible but wrong answers.
+---

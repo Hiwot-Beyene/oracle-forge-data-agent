@@ -12,48 +12,45 @@ _Scale: 600+ PB, 70,000 datasets, 3,500+ internal users_
 
 ### The Core Problem
 
-Finding the right table across 70,000 datasets is the hardest sub-problem.
-Many tables look similar on the surface but differ critically — one includes
-only logged-in users, another includes logged-out users too. Context engineering
-is the bottleneck, not query generation.
+Finding the right table across 70,000 datasets is the hardest sub-problem. Many tables look similar but differ critically (e.g., US users only vs. all users). **Layer 3 (Codex Enrichment)** is the most critical for solving this in production.
 
 ### The Six Layers (cumulative — each builds on the previous)
 
-| Layer | Name                        | What It Provides                                                                                                                         |
-| ----- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | **Raw Schema**              | Table names, column names, data types via `INFORMATION_SCHEMA`. No business meaning — only structure                                     |
-| 2     | **Table Relationships**     | Foreign key relationships, join paths inferred from schema constraints and query history                                                 |
-| 3     | **Column Semantics**        | What each column means in business terms. Example: `status_code = 3` means "active customer." Source: data dictionary, human annotation  |
-| 4     | **Query Patterns**          | Common joins, aggregations, filters that work. Example: "Always filter `deleted_at IS NULL` before counting users." Source: log analysis |
-| 5     | **Institutional Knowledge** | Domain-specific definitions not in schema. Example: "Churn = no purchase in 90 days." Source: business documentation                     |
-| 6     | **User Preferences**        | Individual preferred aggregations, date ranges, output formats. Source: session history                                                  |
+| Layer | Name | What It Provides |
+| :--- | :--- | :--- |
+| 1 | **Raw Schema** | Table names, column names, data types via `list_db`. |
+| 2 | **Expert Descs** | Human-curated notes on table contents and caveats. |
+| 3 | **Codex Enrichment** | Logic extracted from the code that *generates* the data. |
+| 4 | **Institutional** | Product launch notes, incident reports, metric definitions. |
+| 5 | **Learning Memory (self-correction loop)** | Stores corrections and nuances from previous conversations and applies them automatically to future requests. Reads the last 10 entries at session start. |
+| 6 | **Runtime Context** | Live fallback via `query_db` and `execute_python`. |
 
 ### Application to Oracle Forge
 
-| OpenAI Layer        | DAB Agent Implementation                     |
-| ------------------- | -------------------------------------------- |
-| 1: Raw Schema       | MCP Toolbox introspection at startup         |
-| 2: Relationships    | Foreign keys from `information_schema`       |
-| 3: Column Semantics | `kb/domain/schema_descriptions.md`           |
-| 4: Query Patterns   | `kb/domain/query_patterns.md`                |
-| 5: Institutional    | `kb/domain/domain_terms.md`                  |
-| 6: User Preferences | Future iteration — out of scope for Week 8-9 |
+| OpenAI Layer | DAB Agent Implementation |
+| :--- | :--- |
+| 1: Raw Schema | MCP Toolbox introspection |
+| 3: Codex Enrichment | Pipeline logic extraction (Week 3 pipeline) |
+| 5: Learning Memory | **Learning Memory (self-correction loop)** via `kb/corrections/log.md` (Reads the last 10 entries at session start) |
 
-**Minimum viable for DAB:** Layers 1, 3, and 5 must demonstrably work.
-Layer 3 (Column Semantics) is the hardest — document what `user_id` means
-in PostgreSQL vs. `cust_id` in MongoDB **before** the agent runs its first query.
+**Performance Impact of Layer 5:** OpenAI found that a query taking **22 minutes** without memory dropped to **1 minute 22 seconds** with the self-correction loop enabled.
 
-### Self-Correction Loop
+### The Closed-Loop Self-Correction Pattern
+- **Not Error Handling:** Error handling reacts to exceptions raised by the system. Self-correction evaluates the quality of the agent's own reasoning even when *no exception is raised*.
+- **The Rule:** An answer that looks correct but uses the wrong table will not trigger an exception. Self-correction catches this by checking if the result is plausible before returning it (implemented in `self_corrector.py`).
 
-- If intermediate result looks wrong (zero rows, unexpected nulls), agent
-  diagnoses, adjusts, retries
-- Does NOT surface the error to the user
-- Carries learnings forward between steps
-- Result: analysis time dropped from 22 minutes to 90 seconds with memory enabled
+### Key Engineering Lessons
+1. **Tool Consolidation:** Overlapping tools confuse the agent. Restrict to one specific tool per context.
+2. **Code Reveals What Metadata Hides:** Reading pipeline code tells you what was filtered and assumed, which never surfaces in SQL schemas.
 
-### Key Insight
+### DAB Failure Scenarios
+- **Join Key Mismatch**: PostgreSQL uses integers; MongoDB uses strings (e.g., `CUST-00123`). Layer 5 must document this zero-padding or formatting rule.
+- **Ambiguous Definitions**: "Active Customer" means a purchase in the last 90 days, not just a row in the users table.
 
-**Layer 3 (Column Semantics) is the hardest sub-problem.** OpenAI explicitly calls
-out table enrichment as the bottleneck. For DAB, this means documenting what
-`user_id` means in PostgreSQL vs. `cust_id` in MongoDB before the agent runs
-its first query.
+---
+### ⚙️ Injection Test Verification
+- **Test Questions Check:** Layer 5 equivalency, join key handling, and Closed-Loop Self-Correction.
+- **Expected Outcome:** Identify Learning Memory (log.md), format overrides, and proactive quality evaluation vs error handling.
+- **Last Status:** ✅ VERIFIED (100/100)
+- **Verified On:** 2026-04-11
+- **Test Specification:** openai_six_layers_test.md
