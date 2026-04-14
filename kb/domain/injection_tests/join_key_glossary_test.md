@@ -87,7 +87,7 @@ Forbidden contradictions:
 
 ## Test result
 
-**Run timestamp:** 2026-04-13 12:11 UTC
+**Run timestamp:** 2026-04-14 12:18 UTC
 **Model used:** google/gemini-2.0-flash-001
 **Document tested:** kb/domain/join_key_glossary.md
 **Overall result:** PASS
@@ -104,31 +104,24 @@ Forbidden contradictions:
   - [x] Sample 5 values from each side before attempting the full join to verify the format
 
 **Actual answer:**
-Here's how the agent should handle the customer data join based on the provided document:
+Before attempting the join, the agent should:
 
-**1. Before Attempting the Join:**
+1.  Look up the dataset in the glossary.
+2.  Check the format of the join key in BOTH sources.
+3.  Sample 5 values from each side to verify before full join.
 
-*   **Look up the dataset in the glossary:** While the exact customer dataset isn't named "customer data," the agent should look for a dataset involving both PostgreSQL and MongoDB (if available. None are available). Or use the General Normalization Patterns as the general guidelines indicates.
-*   **Check the format of the join key in BOTH sources:** Verify the customer ID format in both PostgreSQL and MongoDB matches the described pattern (`CUST-00123` vs. `123`).
-*   **Sample 5 values from each side:** Query PostgreSQL and MongoDB separately and extract five sample customer IDs from each resulting DataFrame. Use these samples to visually confirm the suspected format difference.
+Normalization steps:
 
-**2. Normalization Steps:**
+1. Strip prefix from the PostgreSQL data using regex `[^0-9]`.
+2. Cast both PostgreSQL and MongoDB data to int.
 
-*   **Normalization:** Use the "Prefixed ID" normalization pattern.
-
-**3. Pandas Code Pattern:**
-
+Pandas code pattern:
 ```python
 # Strip prefix and cast
 df['normalized_id'] = df['raw_id'].str.replace(r'^[A-Z]+-', '', regex=True).astype(int)
 ```
 
-**Explanation:**
-
-*   The code first uses `.str.replace(r'^[A-Z]+-', '', regex=True)` to remove the prefix `CUST-` from the customer IDs in the PostgreSQL data. The `regex=True` argument enables regular expression matching to handle any number of letters before the hyphen.
-*   Then, `.astype(int)` converts the cleaned customer IDs to integers, ensuring that both sides of the join have the same data type.
-
-**Grader reasoning:** All required concepts are present and no contradictions were found, so the score is 100.
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are found, resulting in a perfect score.
 
 ---
 
@@ -145,20 +138,21 @@ df['normalized_id'] = df['raw_id'].str.replace(r'^[A-Z]+-', '', regex=True).asty
   - [x] If still zero rows after normalization log to KB v3 and report LOW confidence
 
 **Actual answer:**
-Based on the document:
+Based on the provided document:
 
-*   **Correct Join Key:** `gmap_id`
-*   **Dangerous Wrong Key:** `name` (because `review.name` may be the reviewer's name, not the business name)
-*   **Recovery Protocol:**
-    1.  **Sample both sides:** Print 5 sample values of the join key from each DataFrame.
+*   **Correct join key:** `gmap_id`
+*   **Dangerous wrong key:** `name` (because `review.name` may be the reviewer name)
+*   **Zero-Row Join Recovery Protocol:**
+
+    1.  **Sample both sides:** Print 5 sample values of the join key from each DataFrame
     2.  **Check types:** Are both the same type (string vs int)?
-    3.  **Check format:** Look for prefixes, case differences, whitespace, padding.
+    3.  **Check format:** Look for prefixes, case differences, whitespace, padding
     4.  **Check this glossary:** Is there a known normalization for this dataset?
-    5.  **Apply normalization:** Use the pattern from this glossary (Verify — strip whitespace if needed).
-    6.  **Retry once:** If still zero rows after normalization, log to KB v3 and report LOW confidence.
-    7.  **Log the fix:** Record the normalization that worked in KB v3 for future runs.
+    5.  **Apply canonical normalization:** Cast to string → strip → lowercase → remove prefixes → normalize padding
+    6.  **Retry once:** If still zero rows after normalization, log to KB v3 and report LOW confidence
+    7.  **Log the fix to KB v3** using the specified format.
 
-**Grader reasoning:** All required concepts are present in the actual answer, and no forbidden contradictions are found, so the score is 100.
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are present, so the score is 100.
 
 ---
 
@@ -172,14 +166,14 @@ Based on the document:
   - [x] The normalization is to truncate both sides to the shared prefix length
 
 **Actual answer:**
-According to the document:
+According to the document, the PANCANCER Atlas dataset requires joining data across PostgreSQL and DuckDB.
 
-*   **Join Key:** `patient_id` (or `bcr_patient_barcode`)
+*   **Join Key:** patient_id (or bcr_patient_barcode)
 *   **Format:** TCGA barcode format: `TCGA-XX-XXXX`
-*   **Format Issue:** TCGA barcodes can be 12-char versus 16-char.
+*   **Format Issue:** The TCGA barcodes may be 12-char vs 16-char between the two databases.
 *   **Normalization:** Truncate to shared prefix if needed.
 
-**Grader reasoning:** All required concepts are present and no forbidden contradictions are present, resulting in a score of 100.
+**Grader reasoning:** The answer contains all required concepts and no forbidden contradictions.
 
 ---
 
@@ -193,13 +187,13 @@ According to the document:
   - [x] The unusual structure is that DuckDB may have one table per ticker symbol resulting in 2754 separate tables
 
 **Actual answer:**
-Based on the document:
+Here's the answer based solely on the provided document:
 
-*   The agent resolves a company name to its trade data by **resolving the company name to a ticker symbol by querying the SQLite stockinfo table then query the matching DuckDB table by name**.
-*   The specific column that is the join key is **`stockinfo.Symbol` (SQLite)**.
-*   The unusual structure about the DuckDB database is that it **may have one table per ticker symbol resulting in 2754 separate tables**.
+*   **How to resolve company to trade data:** Resolve the company name to a ticker symbol by querying the SQLite stockinfo table then query the matching DuckDB table by name.
+*   **Specific column that is the join key:** `stockinfo.Symbol` in the SQLite database is the key that connects to DuckDB trade data.
+*   **What is unusual about the DuckDB structure:** DuckDB may have one table per ticker resulting in 2754 separate tables.
 
-**Grader reasoning:** All required concepts are present and no forbidden contradictions are found, so the score is 100.
+**Grader reasoning:** All required concepts are clearly present in the response, and no forbidden contradictions are found.
 
 ---
 
@@ -214,16 +208,13 @@ Based on the document:
   - [x] Cross-DB joins require querying each database separately normalizing Salesforce-style IDs and merging stepwise in pandas
 
 **Actual answer:**
-According to the document:
+Based on the provided document, here's the information about the CRM Arena Pro dataset:
 
-The CRM Arena Pro dataset has six databases: SQLite (core_crm, products_orders, and territory), DuckDB (sales_pipeline and activities), and PostgreSQL (support).
+*   **Databases:** SQLite (core\_crm, products\_orders, territory), DuckDB (sales\_pipeline, activities), and PostgreSQL (support)
+*   **Join Key Format Issue (Salesforce IDs):** There may be a mismatch between 15-character and 18-character Salesforce IDs.
+*   **Handling ID Mismatch:** If a mismatch exists between a 15-character and 18-character Salesforce ID, use the first 15 characters as the case-insensitive portion. Also, verify case because Salesforce IDs are case-sensitive in 18-char form.
+*   **Combining Cross-DB Results:** Query each database separately, normalize Salesforce-style IDs, and merge stepwise in pandas (never attempt SQL-level cross-DB joins).
 
-A format issue exists with Salesforce-style IDs: they can be 15-character (case-insensitive) or 18-character (case-sensitive).
-
-If there is a mismatch between 15-char and 18-char IDs, the agent should use the first 15 characters as the case-insensitive portion.
-
-Cross-DB results should be combined by querying each database separately, normalizing Salesforce-style IDs, and merging stepwise in pandas.
-
-**Grader reasoning:** All required concepts are present and no forbidden contradictions were found, so the score is 100.
+**Grader reasoning:** All required concepts are present and there are no contradictions, so the score is 100.
 
 ---

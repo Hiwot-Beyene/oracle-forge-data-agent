@@ -26,7 +26,8 @@ import re
 import json
 import argparse
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -254,7 +255,7 @@ def write_results(test_file: Path, results: list[dict], doc_key: str) -> None:
     if marker in content:
         content = content[: content.index(marker)].rstrip()
 
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     all_pass = all(r["grade"]["score"] == 100 for r in results)
     avg_score = round(sum(r["grade"]["score"]
                       for r in results) / len(results), 1)
@@ -331,26 +332,34 @@ def run_test_for_document(doc_key: str) -> bool:
         print("  SKIP: no Q&A pairs with 'Required concepts' found")
         return True
 
-    print(f"  Found {len(qa_pairs)} test question(s). Running...")
+    print(f"  Found {len(qa_pairs)} test question(s). Running in parallel...")
 
-    results = []
-    for i, pair in enumerate(qa_pairs, start=1):
-        print(f"  Q{i}: {pair['question'][:80]}...")
+    def _run_one(idx_pair):
+        idx, pair = idx_pair
         actual = call_openrouter(doc_text, pair["question"])
         grade = grade_with_rubric(
             pair["question"], actual,
             pair["concepts"], pair["forbidden"]
         )
-        n_req = len(pair["concepts"])
-        n_fnd = len(grade["concepts_found"])
-        print(
-            f"       -> {grade['score']}/100  concepts: {n_fnd}/{n_req}  contradictions: {len(grade['contradictions_found'])}")
-        results.append({
-            "question": pair["question"],
-            "concepts": pair["concepts"],
-            "actual":   actual,
-            "grade":    grade,
-        })
+        return idx, pair, actual, grade
+
+    results = [None] * len(qa_pairs)
+    with ThreadPoolExecutor(max_workers=len(qa_pairs)) as executor:
+        futures = {executor.submit(_run_one, (i, p)): i
+                   for i, p in enumerate(qa_pairs)}
+        for future in as_completed(futures):
+            idx, pair, actual, grade = future.result()
+            n_req = len(pair["concepts"])
+            n_fnd = len(grade["concepts_found"])
+            print(f"  Q{idx+1}: {pair['question'][:80]}...")
+            print(
+                f"       -> {grade['score']}/100  concepts: {n_fnd}/{n_req}  contradictions: {len(grade['contradictions_found'])}")
+            results[idx] = {
+                "question": pair["question"],
+                "concepts": pair["concepts"],
+                "actual":   actual,
+                "grade":    grade,
+            }
 
     write_results(test_file, results, doc_key)
     return all(r["grade"]["score"] == 100 for r in results)
@@ -364,7 +373,7 @@ def main():
 
     print("Oracle Forge — KB v2 Domain Injection Test Runner (rubric grading)")
     print(f"Model     : {MODEL}")
-    print(f"Timestamp : {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"Timestamp : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
     targets = [args.doc] if args.doc else sorted(
         DOCUMENTS.keys(), key=lambda k: DOCUMENTS[k]["priority"]
