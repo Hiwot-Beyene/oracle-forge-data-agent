@@ -1,27 +1,66 @@
-# Community Participation Log - Team Mistral
+# Community Participation Log — Team Mistral
 
-## Week 8 (April 6-12, 2026)
+## Overview
 
-### Day 4 - April 10, 2026
+This log captures Team Mistral’s participation in external AI engineering communities to validate ideas and gather insights.
 
-#### X (Twitter)
-| Time | Thread | Engagement | Intelligence |
-|------|--------|------------|--------------|
-| Day 4 | Claude Code architecture | Pending | - |
+---
 
-#### LinkedIn
-| Time | Post | Engagement | Intelligence |
-|------|------|------------|--------------|
-| Day 4 | Team Mistral approach | Pending | - |
+## Reddit — r/LocalLLaMA
 
-### Day 5 - April 11, 2026
+- Type: Post
+- Link:
+  https://www.reddit.com/r/LocalLLaMA/comments/1skj9nm/building_a_data_agent_for_dataagentbench/
 
-#### Planned Engagements
-- Reddit: r/MachineLearning - DAB benchmark discussion
-- Reddit: r/LocalLLaMA - Multi-database agents
-- Discord: Hugging Face #ai-agents - Introduction
+- Topic:
+  Context optimization and Knowledge Base design
 
-#### Intelligence Gathered
-- KB documents must be <400 tokens for injection tests to pass
-- MongoDB restore is blocking full database setup
-- Week 9 will focus on KB v2 (domain) and KB v3 (corrections)
+- Contribution:
+  Shared experience improving performance from 80–90% to 100% through context reduction
+
+- Intelligence:
+  Community confirms context structure strongly impacts LLM performance
+
+---
+
+## X (Twitter)
+
+- Type: Threads
+- Links:
+  https://x.com/TsegayAsse64592/status/2042899334992195968  
+  https://x.com/TsegayAsse64592/status/2043727894116004035  
+
+- Topic:
+  Claude Code, system design, context engineering
+
+- Contribution:
+  Shared technical insights and engaged with discussions
+
+- Intelligence:
+  Reinforces importance of structured memory and tool separation
+
+---
+
+## LinkedIn
+
+- Type: Technical posts
+- Links:
+  https://www.linkedin.com/feed/update/urn:li:activity:7448646409370787840  
+  https://www.linkedin.com/posts/team-mistral_aiengineering-dataagentbench-teammistral-activity-7448781849729912832-5IHf  
+
+- Topic:
+  Production data agents and system design
+
+- Contribution:
+  Documented team progress and technical insights
+
+---
+
+## Summary
+
+Community participation validated key engineering decisions:
+
+- Context engineering drives performance  
+- Structured KB improves reliability  
+- Real systems require multi-layer context and evaluation  
+
