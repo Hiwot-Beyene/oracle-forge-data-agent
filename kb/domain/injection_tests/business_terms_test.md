@@ -86,7 +86,7 @@ Forbidden contradictions:
 
 ## Test result
 
-**Run timestamp:** 2026-04-13 12:11 UTC
+**Run timestamp:** 2026-04-14 09:02 UTC
 **Model used:** google/gemini-2.0-flash-001
 **Document tested:** kb/domain/business_terms.md
 **Overall result:** PASS
@@ -103,15 +103,14 @@ Forbidden contradictions:
   - [x] A time window must be specified or verified before computing
 
 **Actual answer:**
-According to the document, the correct definition of repeat purchase rate is:
+According to the document under "Cross-Domain Terms," the correct definition of "Repeat purchase rate" in the Retail domain is:
 
 (Customers with >=2 purchases in time window) / (Total unique customers in same window). Ratio of customers, not transactions. CRITICAL: Always verify the time window before computing.
 
 The common wrong assumption is:
-
 Total purchases / total customers
 
-**Grader reasoning:** The answer includes all required concepts and does not contain any forbidden contradictions.
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are present, resulting in a perfect score.
 
 ---
 
@@ -125,13 +124,13 @@ Total purchases / total customers
   - [x] The dangerous misinterpretation is confusing it with the BRCA gene
 
 **Actual answer:**
-Based solely on the provided document:
+Based on the provided document:
 
-*   **Meaning:** BRCA stands for Breast Invasive Carcinoma.
-*   **Database and Column:** The `disease_type` column in the PostgreSQL clinical data table should be used to filter for BRCA patients.
-*   **Dangerous Misinterpretation:** Confusing BRCA with the BRCA gene.
+*   **Meaning of BRCA:** In the PANCANCER Atlas dataset, BRCA stands for Breast Invasive Carcinoma.
+*   **Database and Column for Filtering:** The clinical data in PostgreSQL should be used. Filter by the `disease_type` column for BRCA patients.
+*   **Dangerous Misinterpretation:** Confusing the BRCA cancer type abbreviation with the BRCA gene.
 
-**Grader reasoning:** All required concepts are present and there are no contradictions.
+**Grader reasoning:** All required concepts are present in the answer and there are no forbidden contradictions.
 
 ---
 
@@ -145,11 +144,13 @@ Based solely on the provided document:
   - [x] GitHub stars are in the DuckDB project_database not in the SQLite package database
 
 **Actual answer:**
-*   **Correct way to determine the latest release version:** Sort by the `UpstreamPublishedAt` date.
-*   **Wrong approach:** Sorting by the highest semantic version number.
-*   **Database holding GitHub star counts for packages:** DuckDB `project_database`.
+Based solely on the provided document:
 
-**Grader reasoning:** All required concepts are present and there are no contradictions, resulting in a perfect score.
+*   **How to determine the latest release version:** Sort by `UpstreamPublishedAt` date, not by the semantic version number.
+*   **Wrong approach:** Sorting by semantic version string.
+*   **Database for GitHub stars:** DuckDB `project_database` holds GitHub stars, but the package information is stored in the SQLite package database, requiring a cross-DB join.
+
+**Grader reasoning:** All required concepts are present and no contradictions are found, so the score is 100.
 
 ---
 
@@ -164,13 +165,14 @@ Based solely on the provided document:
   - [x] Trade data with OHLC values is in DuckDB not SQLite
 
 **Actual answer:**
-Here's the answer based on the provided document:
+Based on the provided document:
 
-*   **Intraday volatility formula:** (High - Low) / Open for each trading day, averaged over the requested period.
-*   **Database for OHLC trade data:** DuckDB.
-*   **Location of Asia region indices:** Determined by the `Exchange` field in the SQLite `index_info` table. The agent needs to map exchange names to regions, as "Asia" may not be stored literally as a value.
+*   The correct formula for **intraday volatility** is:
+    `(High - Low) / Open for each trading day, averaged over the requested period.`
+*   The **OHLC trade data** is located in the **DuckDB** database.
+*   The agent can find which indices belong to the **Asia region** by using the `Exchange` field in the **SQLite `index_info` table**. "Asia" may not be stored literally, so exchange-to-region mapping is required.
 
-**Grader reasoning:** All required concepts are present and no forbidden contradictions are found, so the score is 100.
+**Grader reasoning:** All four required concepts are present and there are no contradictions, giving a score of 100.
 
 ---
 
@@ -185,12 +187,13 @@ Here's the answer based on the provided document:
   - [x] The agent should not assume other categories exist beyond the four listed
 
 **Actual answer:**
-*   **Category Database:** MongoDB `articles` collection
-*   **Region Database:** SQLite `article_metadata` table
-*   **Valid Category Values:** Sports, Business, Science/Technology, and World
-*   **Cross-Database Join Required:** Yes
-*   **Join Key:** `article_id`
+Based on the document provided:
 
-**Grader reasoning:** All required concepts are present and no forbidden contradictions are present, resulting in a perfect score.
+*   **Category** of articles is stored in the **MongoDB `articles` collection**.
+*   The only valid category values are: **Sports, Business, Science/Technology, and World**.
+*   **Region** of publication is stored in the **SQLite `article_metadata` table**.
+*   **A cross-database join on `article_id` is required to combine category and region data.**
+
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are found.
 
 ---

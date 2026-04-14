@@ -90,7 +90,7 @@ Forbidden contradictions:
 
 ## Test result
 
-**Run timestamp:** 2026-04-13 12:11 UTC
+**Run timestamp:** 2026-04-14 12:12 UTC
 **Model used:** google/gemini-2.0-flash-001
 **Document tested:** kb/domain/schemas.md
 **Overall result:** PASS
@@ -107,14 +107,14 @@ Forbidden contradictions:
   - [x] Confusing the two name columns would produce a wrong join and incorrect results
 
 **Actual answer:**
-According to the document, in the Google Local dataset:
+According to the provided documentation for the Google Local dataset:
 
-*   The `name` column in the PostgreSQL `business_description` table represents the **business name**.
-*   The `name` column in the SQLite `review` table represents the **reviewer name**.
+-   In the PostgreSQL `business_description` table, the `name` column represents the **business name**.
+-   In the SQLite `review` table, the `name` column represents the **reviewer name**.
 
-The distinction is critical for joining because joining the tables using the wrong `name` column would be incorrect. The correct join should be on `gmap_id` (the Google Maps unique ID) to link businesses to their reviews, not on the name of the business and name of the reviewer which would be incorrect.
+This distinction is critical for correctly joining the tables, since if a user were to join the two tables, the business name from the `business_description` table could easily be confused with the reviewer name from the `review` table. The documentation explicitly warns not to confuse those two features. The join key to link businesses and reviews is the `gmap_id` column, present in both tables. Joining incorrectly on the `name` column would result in misleading or incorrect results because the business and reviewer names aren't related.
 
-**Grader reasoning:** The answer correctly identifies the content of each name column, the correct join key, and the problem with using the wrong name column for joining.
+**Grader reasoning:** The answer correctly identifies all required concepts and contains no contradictions, earning a perfect score.
 
 ---
 
@@ -130,14 +130,14 @@ The distinction is critical for joining because joining the tables using the wro
   - [x] Clinical data including both fields is in PostgreSQL not DuckDB
 
 **Actual answer:**
-Based on the provided document for the PANCANCER Atlas dataset:
+Based on the document:
 
-*   **Difference:** `days_to_birth` is the number of days from birth to diagnosis, represented as a negative integer. `age_at_initial_pathologic_diagnosis` is the patient's age at the time of diagnosis.
-*   **Computation of Age from days_to_birth:** `Age = abs(days_to_birth) / 365.25`
-*   **Preferred Field:** The agent should prefer `age_at_initial_pathologic_diagnosis` as it is a direct age field.
-*   **Database:** These clinical fields are located in the PostgreSQL `clinical_info` table.
+*   **Difference:** `days_to_birth` is the number of days from birth to diagnosis (a negative integer), while `age_at_initial_pathologic_diagnosis` is the patient's age at diagnosis.
+*   **Age Computation from days\_to\_birth:** Age = `abs(days_to_birth) / 365.25`
+*   **Preferred field:** The agent should prefer `age_at_initial_pathologic_diagnosis` as it is a direct age field.
+*   **Database:** These clinical fields are located in the PostgreSQL `clinical_info` table within the `pancancer_clinical` database.
 
-**Grader reasoning:** The answer contains all required concepts and no forbidden contradictions, so it receives a perfect score.
+**Grader reasoning:** All required concepts are present and there are no contradictions, so the score is 100.
 
 ---
 
@@ -153,15 +153,15 @@ Based on the provided document for the PANCANCER Atlas dataset:
   - [x] A cross-database join is required to combine book metadata with review data
 
 **Actual answer:**
-Based on the document:
+Based on the document provided:
 
-*   **Review ratings:** SQLite (`review_query.db`)
-*   **Book category:** PostgreSQL (`bookreview_db`)
-*   **Rating scale:** 1.0 to 5.0
-*   **Cross-database join required:** Yes
-*   **verified_purchase meaning:** Whether the reviewer bought the book (1=verified, 0=not)
+*   **Review Rating:** SQLite `review` table.
+*   **Book Category:** PostgreSQL `books_info` table.
+*   **Cross-Database Join:** Yes, a cross-database join is required.
+*   **Rating Scale:** 1.0 to 5.0 per individual review.
+*   **verified\_purchase column:** Indicates whether the reviewer bought the book (1=verified, 0=not).
 
-**Grader reasoning:** All required concepts are present and no contradictions are found.
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are found.
 
 ---
 
@@ -176,16 +176,17 @@ Based on the document:
   - [x] Package data is in the SQLite packageinfo table and project data is in DuckDB
 
 **Actual answer:**
-Based on the document:
+Based on the document for the Deps Dev dataset:
 
-*   The `UpstreamPublishedAt` column should be used to determine the latest version of a package. Sort by date, not by version string within the "Version" column.
-*   The JSON-encoded columns are:
-    *   `Licenses`: Contains license identifiers as a JSON array (e.g., `["MIT", "Apache-2.0"]`).
+*   **Latest Version:** The `UpstreamPublishedAt` column should be used to determine the latest version. It advises to sort by date, not by the `Version` string.
+*  **JSON-encoded Columns:**
+    *   `Licenses`: Contains license identifiers as a JSON array (e.g., ["MIT", "Apache-2.0"]).
     *   `Advisories`: Contains security advisory records as a JSON array.
-    *   `Links`: Contains URLs (homepage, repo) as a JSON structure.
-*   Package data is in the SQLite `packageinfo` table, and project data is in DuckDB.
+    *   `Links`: Contains URLs (homepage, repo) in a JSON structure.
 
-**Grader reasoning:** The response contains all required concepts and no contradictions.
+*   **Database split:** Package data is located in the SQLite `packageinfo` table and project data is located in DuckDB.
+
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are found.
 
 ---
 
@@ -201,18 +202,14 @@ Based on the document:
   - [x] DuckDB contains per-ticker trade tables with OHLCV data
 
 **Actual answer:**
-Here's the answer based solely on the provided document:
+Here's the information extracted from the document about the Stock Market dataset:
 
-*   **Columns in the SQLite stockinfo table:** Nasdaq Traded, Symbol, Listing Exchange, Market Category, ETF, Round Lot Size, Test Issue, Financial Status, NextShares, and Company Description.
+*   SQLite `stockinfo_query.db` - `stockinfo` table Columns: Nasdaq Traded, Symbol, Listing Exchange, Market Category, ETF, Round Lot Size, Test Issue, Financial Status, NextShares, and Company Description.
+*   ETF Column Meaning: Y/N - indicates if the entry is an ETF (Exchange Traded Fund).
+*   Unstructured Text Field: `Company Description` contains an unstructured full company description.
+*   DuckDB Contents: Per-ticker trade tables with OHLCV data (date, open, high, low, close, adjusted_close, volume).
+*   Authoritative Source for Company Name to Ticker: The SQLite `stockinfo` table (`stockinfo.Symbol`).
 
-*   **Meaning of the ETF column:** Y/N - indicates whether the stock is an Exchange Traded Fund.
-
-*   **Unstructured text field:** Company Description.
-
-*   **What DuckDB contains:** Per-ticker trade tables with OHLCV data (date, open, high, low, close, adjusted_close, volume).
-
-*   **Authoritative source for resolving a company name to its ticker:** The SQLite stockinfo table.
-
-**Grader reasoning:** All required concepts are present, and no forbidden contradictions are found, thus earning a perfect score.
+**Grader reasoning:** All required concepts are present and there are no contradictions, resulting in a perfect score.
 
 ---
