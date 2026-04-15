@@ -13,12 +13,13 @@ trace_sidecar: eval/scores/trace_summary.jsonl
 profiles:
   first_run:
     label: first_run
-    default_run_suffix: run_1
+    default_run_suffix: run_0
     trace_overrides:
-      query_yelp: smoke_yelp_2
+      query_bookreview: run_0
+      query_yelp: run_0
   submission:
     label: submission
-    default_run_suffix: run_2
+    default_run_suffix: run_4
     trace_overrides:
       query_bookreview: run_4
-      query_yelp: smoke_yelp_3
+      query_yelp: run_1
