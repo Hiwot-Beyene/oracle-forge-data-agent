@@ -1,7 +1,7 @@
 # KB v2 — Unstructured Text Fields Inventory (unstructured_fields.md)
 
 Oracle Forge | Intelligence Officers | April 2026
-Status: v1.1 — Updated with injection test fixes (2026-04-13)
+Status: v1.5 — Paper-aligned: FM4 extraction hierarchy, Q3 fix, Patents hardened (2026-04-14)
 
 ## How to Use This File
 
@@ -94,8 +94,8 @@ These fields contain natural language text that may need NLP/LLM extraction.
 | Content type        | Repository documentation in Markdown                                                                                 |
 | Typical length      | 100-10000 characters                                                                                                 |
 | Use cases           | Copyright detection, technology detection, project description extraction                                            |
-| Extraction approach | Regex for "copyright" keyword. LLM for semantic analysis                                                             |
-| Difficulty          | LOW — simple keyword search, not complex NLP                                                                         |
+| Extraction approach | **Keyword search ONLY**: case-insensitive regex or SQL LIKE for the word "copyright". Do NOT use LLM extraction — this is a simple string match. |
+| Difficulty          | LOW — simple keyword search, not complex NLP. No LLM or NER required.                                               |
 | Example query       | "Among repositories that do not use Python, what proportion of their README.md files include copyright information?" |
 
 Note: Repository metadata and language information is in SQLite `repo_metadata.db`, but README content is in DuckDB `repo_artifacts.db`.
@@ -182,6 +182,49 @@ They require parsing before use but are not free-text. All semi-structured JSON 
 | Parsing approach | PostgreSQL: `parents::json` or `json_array_elements`. Python: `json.loads()` |
 | Use cases        | Navigating the CPC hierarchy, finding parent/child technology areas          |
 
+### Patents — Date fields in `patent_publication` (SQLite) — **COMPLETELY UNSOLVED IN DAB**
+
+| Property            | Value                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Database            | SQLite `patent_publication.db` (5GB)                                                                          |
+| Fields              | Filing date, publication date, priority date (various column names — introspect at runtime)                   |
+| Content type        | Dates in **>20 variant formats** embedded in text fields                                                      |
+| Known formats       | "2019-03-05", "March 5, 2019", "dated 5th March 2019", "March the 18th, 2019", "filed 02/14/2020", "5.3.19"  |
+| Extraction approach | **MUST use `dateutil.parser.parse()`** or `pd.to_datetime()`. Regex `\d{4}` WILL fail — proven 0% pass@1     |
+| Difficulty          | **CRITICAL** — 0% pass@1 across all frontier models in DAB evaluation. No agent solved any Patents query.     |
+| Why it fails        | Regex cannot handle ordinal suffixes ("5th"), month-first vs day-first ambiguity, or natural language dates    |
+
+## CRITICAL — FM4 Regex-Only Extraction Failure (Paper Section 3.3)
+
+**Key finding from DAB paper (arxiv 2603.20576, n=1,147 trajectories):**
+FM4 (incorrect implementation) accounts for **~45% of all failures**. The dominant sub-pattern:
+**All tested frontier agents use ONLY regex for text extraction. None attempt date parsers, NER, or LLM-based extraction.**
+
+This causes:
+- **0% pass@1 on Patents** — regex cannot parse varied date formats like "dated 5th March 2019", "March the 18th, 2019", or "filed on 02/14/2020"
+- **PANCANCER gender misclassification** — regex pattern `MALE` matches inside the string `FEMALE`
+- **Book Reviews year errors** — year-extraction regex `\d{4}` matches ISBN segments (e.g., "978-0-13-110362-7" → extracts "0131")
+- **AG News misclassification** — regex topic detection fails on ambiguous articles spanning multiple categories
+
+### Extraction Method Hierarchy (USE THIS — not regex-only)
+
+Choose the **simplest method that works reliably** for each field:
+
+| Level | Method | When to Use | Example |
+|-------|--------|-------------|---------|
+| 1 — Keyword | SQL LIKE/ILIKE or regex for literal string | Single word/phrase detection, boolean presence checks | Copyright in README, "Python" in language |
+| 2 — Parser | `dateutil.parser.parse()`, `json.loads()`, SQL json functions | Dates in varied formats, JSON-encoded fields, structured-but-messy text | Patent filing dates, Google Local hours JSON |
+| 3 — NER/Pattern | `execute_python` with spaCy NER, word-boundary regex `\bMALE\b` | Entity extraction, gender/name detection, category classification from short text | PANCANCER gender (use `\bMale\b` not `MALE`), diagnosis codes |
+| 4 — LLM | `execute_python` with LLM extraction via API call | Complex semantic extraction requiring reasoning, multi-factor analysis | BANT factor analysis, sentiment classification, clinical note interpretation |
+
+**Rules:**
+- **NEVER use bare regex for date extraction** — use `dateutil.parser.parse()` or `pd.to_datetime()` with `infer_datetime_format=True`
+- **NEVER use regex without word boundaries for gender/name** — `\bMale\b` not `MALE`
+- **NEVER use `\d{4}` alone for year extraction** — validate range (1800-2030) and context (not inside ISBN, phone, ID)
+- **For Patents: ALWAYS use dateutil** — the dataset contains >20 date format variants that no single regex can handle
+
+---
+
 ## Extraction Protocol
 
 When a query requires data from an unstructured field, follow this protocol:
@@ -208,5 +251,6 @@ DAB's Hard Requirement 3 (Unstructured Text Transformation) appears in these dat
 | Stock Market | Company Description | Sector classification | LOW |
 | Deps Dev | Licenses, Advisories | JSON array parsing | LOW |
 | Patents | parents, children | JSON array parsing | LOW |
+| Patents | Filing/publication dates | Date extraction from variant formats | **CRITICAL** — 0% pass@1 |
 
-CHANGELOG: v1.1 updated April 13 2026. Fixes applied for injection test Q1 (explicit BANT definition, execute_python requirement, and HIGH difficulty rating clearly stated).
+CHANGELOG: v1.5 updated April 14 2026. Paper alignment: (1) Fixed Q3 GitHub README contradiction — copyright is keyword-only, not LLM. (2) Added FM4 regex-only failure section with paper's specific examples. (3) Added extraction method hierarchy (keyword → parser → NER → LLM). (4) Added Patents date extraction entry (CRITICAL — 0% pass@1). (5) Updated HR3 coverage map with Patents date extraction.

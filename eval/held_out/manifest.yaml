@@ -1,0 +1,18 @@
+# Held-out evaluation: query1 only, traces under logs/data_agent/<run_suffix>/final_agent.json
+# Run suffix is passed to the harness (--run-suffix). Same datasets for baseline vs submission.
+
+datasets:
+  - query_bookreview
+  - query_yelp
+  - query_agnews
+  - query_stockmarket
+  - query_stockindex
+  - query_crmarenapro
+  - query_googlelocal
+  - query_PATENTS
+  - query_PANCANCER_ATLAS
+  - query_GITHUB_REPOS
+  - query_DEPS_DEV_V1
+  - query_music_brainz_20k
+
+query_id: query1

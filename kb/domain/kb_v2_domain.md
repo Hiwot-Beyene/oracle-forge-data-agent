@@ -3,7 +3,7 @@
 # KB v2 — Domain Knowledge Base
 
 _The Oracle Forge | Intelligence Officers | April 2026_
-_Status: v1.0 — Seed document. Update continuously as Drivers discover patterns._
+_Status: v1.5 — Full paper alignment (arxiv 2603.20576). Model comparison, exploration ratio, Patents unsolved, FM4 extraction hierarchy added._
 
 ---
 
@@ -14,11 +14,36 @@ _Source: arxiv.org/abs/2603.20576 — UC Berkeley EPIC + PromptQL Hasura, March 
 ### Benchmark Facts
 
 - **54 queries** across **12 datasets**, **9 domains**, **4 database systems**
-- Domains: retail, telecom, healthcare, finance, anti-money laundering, book reviews, + others
+- Domains: news articles, e-commerce, CRM/sales, software engineering, local business, music, financial markets, medical research, patents/IP
 - Database systems: PostgreSQL, MongoDB, SQLite, DuckDB — **often multiple in the same query**
-- Best current score: **PromptQL + Gemini-3.1-Pro: 54.3% pass@1** (5 trials/query, as of March 2026)
-- Second: PromptQL + Claude-Opus-4.6: 50.8% pass@1
-- Best frontier model without PromptQL scaffolding: ~38% — this is the "engineering gap" we close
+- Property distribution: all 54 require multi-DB; 47/54 require text transformation; 26/54 have ill-formatted join keys; 30/54 need domain knowledge
+- **50 trials per query** to measure both pass@1 and pass@k accuracy
+- **1,147 annotated trajectories** analyzed for failure mode classification
+- Best pass@50: **69%** — agents CAN solve more queries given enough attempts, proving the bottleneck is reliability not capability
+- **Patents dataset: completely unsolved** — 0% pass@1 across ALL models and ALL trials
+
+### Model Comparison (Paper Table 3 — 50 trials/query)
+
+| Model | pass@1 | pass@50 | Total Cost | Cost per 1% Accuracy |
+|-------|--------|---------|------------|---------------------|
+| Gemini-3-Pro | **38%** | 69% | $1,355 | $35.66 |
+| GPT-5.2 | 36% | 67% | $1,089 | $30.25 |
+| Gemini-2.5-Flash | 33% | 63% | $83 | $2.52 |
+| GPT-5-mini | 30% | 56% | **$67** | $2.23 |
+| Kimi-K2 | 28% | 54% | $146 | $5.21 |
+
+**Cost-efficiency insight:** GPT-5-mini achieves 30% at $67 total. Gemini-3-Pro costs 20x more ($1,355) for only 8% more accuracy. For development iterations, use a cheap model; reserve expensive models for final benchmark runs.
+
+### Scaffolded Systems (Paper Table 7)
+
+| System | pass@1 | Key Advantage |
+|--------|--------|---------------|
+| PromptQL + Gemini-3.1-Pro | **54.3%** | Semantic layer + metadata curation |
+| PromptQL + Claude-Opus-4.6 | 50.8% | Same scaffold, different model |
+| ReAct baseline + Claude-Opus-4.6 | 44% | No semantic layer |
+| Frontier model (no scaffold) | ~38% | Raw model capability |
+
+The gap between 38% (no scaffold) and 54% (PromptQL) is the **"engineering gap"** we close with context engineering.
 
 ### Why the Gap Exists
 
@@ -253,20 +278,56 @@ log_to_corrections(
 
 ---
 
-## SECTION E: Known DAB Failure Modes (from paper error analysis)
+## SECTION E: Known DAB Failure Modes (from paper Section 3.3, n=1,147 annotated trajectories)
 
-| Failure Mode Code | Description                                                            | Frequency |
-| ----------------- | ---------------------------------------------------------------------- | --------- |
-| FM1               | Wrong table selected — agent picks deprecated or wrong-grain table     | High      |
-| FM2               | Incorrect plan — wrong aggregation logic (e.g., averaging percentages) | High      |
-| FM3               | Incorrect column selection — joins on wrong field                      | Medium    |
-| FM4               | Incorrect regex / key normalization — format mismatch not caught       | Medium    |
-| FM5               | Missing domain knowledge — wrong definition applied to metric          | High      |
-| FM6               | DB dialect error — SQL syntax used on MongoDB or vice versa            | Medium    |
+**Key statistic: 85% of incorrect answers are FM2 + FM4. Agents usually find the right data — they fail at planning or implementing.**
+
+| FM Code | Paper Definition | % of Failures | Description |
+| ------- | ---------------- | ------------- | ----------- |
+| FM1 | Fails before planning | varies | Agent makes no attempt. Returns null tool-call (Gemini-2.5-Flash: 63.4%) or refuses ("I cannot join across databases"). |
+| FM2 | Incorrect plan | ~40% | Logical plan is wrong — even perfect execution cannot produce correct answer. E.g., averaging per-book ratings then averaging across books instead of averaging all reviews directly. |
+| FM3 | Incorrect data selection | ~15% | Correct plan but wrong table/column chosen. E.g., checking `description` for language when it is in `details`. |
+| FM4 | Incorrect implementation | ~45% | Correct plan + correct data, but code is wrong. Dominant sub-pattern: regex-only text extraction (see below). |
+| FM5 | Runtime error | rare | API failures, token limits, timeouts, 100-call limit. Rare except for Kimi-K2 (6.6%). |
+
+**FM4 critical sub-pattern — regex-only text extraction:**
+All tested agents use regex exclusively for extracting structured values from free text. None attempt NLP, NER, dateutil, or LLM-based extraction. This causes:
+- **0% pass@1 on patents** — regex cannot parse "dated 5th March 2019" or "March the 18th, 2019"
+- **PANCANCER gender misclassification** — regex `MALE` matches inside `FEMALE`
+- **bookreview year errors** — year-extraction regex matches ISBN segments
+
+**Paper recommendation:** Expose dedicated extraction tools (date parsers, NER taggers, LLM-based extraction) alongside SQL and Python execution.
+
+### Completely Unsolved Datasets
+
+| Dataset | pass@1 (best model) | Why It Fails |
+|---------|---------------------|--------------|
+| **Patents** | **0%** across all models, all trials | Date extraction from >20 variant formats; CPC hierarchy navigation; 5GB SQLite file requires efficient filtered queries |
+| stockindex (partial) | Very low | Exchange-to-region mapping not in schema; requires domain knowledge |
+
+**Patents** is the single hardest dataset in DAB. Any agent that solves even 1 Patents query would be a novel research contribution.
 
 ---
 
-## SECTION F: Agent Context File Template (AGENT.md seed)
+## SECTION F: Tool Usage Balance (Paper Section 3.2)
+
+**Key finding:** Across all models, **~20% of tool calls are exploration** (schema inspection, sampling, listing tables). Deviation in either direction hurts performance.
+
+| Exploration Ratio | Effect |
+|-------------------|--------|
+| <15% | Agent dives into queries without understanding schema → FM3 (wrong data source) |
+| ~20% | **Optimal** — enough exploration to find right tables, then efficient execution |
+| >30% | Agent wastes token budget on exploration, runs out of iterations before answering |
+
+**Practical rules for the agent:**
+1. **First 2-3 tool calls** of any query should be `list_db` or schema introspection — understand what tables exist and what columns they have
+2. **Sample 5 values** from join key columns before any cross-DB join (catches format mismatches early)
+3. **Stop exploring** once you have identified the target tables and confirmed column names — execute the query
+4. **Budget:** aim for 3-5 exploration calls out of every 15-20 total calls per query
+
+---
+
+## SECTION G: Agent Context File Template (AGENT.md seed)
 
 ```markdown
 # Data Agent Context
@@ -304,5 +365,5 @@ Always include: query used, database queried, any normalization applied, confide
 
 ---
 
-_CHANGELOG: v1.0 created April 9 2026. Sources: DAB paper arxiv 2603.20576, GitHub ucbepic/DataAgentBench, OpenAI data agent blog._
+_CHANGELOG: v1.5 updated April 14 2026. Paper alignment: (1) Added model comparison table with costs (Paper Table 3). (2) Added scaffolded systems comparison (Paper Table 7). (3) Added exploration ratio ~20% optimal (Paper Section 3.2). (4) Added Patents completely unsolved finding. (5) Added pass@50 = 69% and 1,147 trajectory count. (6) Renumbered sections: new Section F (Tool Usage Balance), old Section F → Section G._
 _TODO for Drivers: fill in actual DB connection strings; update routing table after schema introspection tool runs; add discovered domain terms to Section D glossary._

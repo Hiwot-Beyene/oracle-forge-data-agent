@@ -1,7 +1,7 @@
 # KB v2 — Domain Term Glossary (business_terms.md)
 
 Oracle Forge | Intelligence Officers | April 2026
-Status: v1.3 — Updated with explicit grader-aligned concepts (2026-04-13)
+Status: v1.5 — Paper-aligned: Patents 0% warning, date extraction rules, FM4 mitigations (2026-04-14)
 
 ## How to Use This File
 
@@ -26,7 +26,8 @@ If a term is NOT listed, state your assumed definition in the answer and log it 
 
 ### Cross-Database Join Rule (CRITICAL)
 
-- **Category is stored in the MongoDB `articles` collection** with exactly four valid values: Sports, Business, Science/Technology, and World. The agent should not assume other categories exist beyond the four listed.
+- **Category is stored in the MongoDB `articles` collection** with exactly four valid values: Sports, Business, Science/Technology, and World.
+- **WARNING: There are ONLY four categories. The agent must NOT assume or accept any category values beyond Sports, Business, Science/Technology, and World. No other categories exist in this dataset.**
 - **Region is stored in the SQLite `article_metadata` table**, not in MongoDB.
 - **A cross-database join on `article_id` is required to combine category and region data.**
 
@@ -122,13 +123,18 @@ If a term is NOT listed, state your assumed definition in the answer and log it 
 
 ## Patents (query_PATENTS)
 
+### CRITICAL WARNING — Completely Unsolved Dataset
+
+**Patents achieved 0% pass@1 across ALL frontier models in DAB evaluation (Paper Section 3.1).** No agent solved any Patents query in any trial. The primary failure is FM4: regex-based date extraction cannot handle the >20 date format variants in this dataset.
+
 | Term                             | Correct Definition                                                                                   | Notes                                                      |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | CPC code                         | Cooperative Patent Classification code. Hierarchical: Section > Class > Subclass > Group > Subgroup. | PostgreSQL `cpc_definition` table stores the hierarchy     |
 | CPC level 5                      | The 5th depth level in CPC hierarchy (subgroup level). Filter by `level` column in cpc_definition.   | Specific depth — not the first 5 characters of the code    |
 | Exponential moving average (EMA) | EMA*t = alpha * value_t + (1 - alpha) * EMA*(t-1). Initialize EMA_0 = first value.                   | Alpha (smoothing factor) specified per query, e.g., 0.2    |
-| Patent filing year               | Year extracted from filing/publication date in SQLite `patent_publication` table.                    | Large dataset (5GB) — use efficient filtered queries       |
+| Patent filing year               | Year extracted from filing/publication date in SQLite `patent_publication` table. **MUST use `dateutil.parser.parse()` or `pd.to_datetime()` — regex `\d{4}` WILL fail on formats like "dated 5th March 2019" or "March the 18th, 2019".** | Large dataset (5GB) — use efficient filtered queries. **Never use bare regex for date extraction.** |
 | Technology area                  | Human-readable area name. Map CPC codes to names via `titleFull` in PostgreSQL cpc_definition.       | Join patent CPC code -> cpc_definition.symbol -> titleFull |
+| Patent date formats              | >20 variants observed: "2019-03-05", "March 5, 2019", "dated 5th March 2019", "March the 18th, 2019", "filed 02/14/2020", "5.3.19". **Regex cannot handle these — use `dateutil.parser.parse()`.** | This is the #1 reason Patents is unsolved in DAB |
 
 ## Stock Index (query_stockindex)
 
@@ -150,4 +156,4 @@ If a term is NOT listed, state your assumed definition in the answer and log it 
 | ETF                     | Whether the security is an Exchange-Traded Fund. Boolean in `stockinfo.ETF`.                 | Filter OUT ETFs when querying individual stocks unless asked |
 | Maximum price in year   | MAX(adjusted_close) WHERE year(date) = specified year. From DuckDB trade data.               | Aggregate over all trading days in that calendar year        |
 
-CHANGELOG: v1.3 updated April 13 2026. Fixes applied for injection test Q2 (explicit BRCA "NOT the gene" statement added) and Q5 (explicit cross-DB join on `article_id` statement added to AG News).
+CHANGELOG: v1.5 updated April 14 2026. Paper alignment: (1) Added Patents "CRITICAL WARNING — Completely Unsolved Dataset" section with 0% pass@1 finding. (2) Added Patent date formats term with >20 variant examples. (3) Hardened Patent filing year definition to require dateutil, not regex. Prior: v1.3 (2026-04-13) injection test fixes for Q2 (BRCA) and Q5 (AG News cross-DB join).

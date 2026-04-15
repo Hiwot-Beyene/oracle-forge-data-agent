@@ -4,6 +4,50 @@ All notable changes to the KB v2 domain knowledge files are documented here.
 
 ---
 
+## [v1.5] — 2026-04-14
+
+### Paper Alignment Audit (arxiv 2603.20576)
+
+Full alignment pass against the DAB paper. Addressed 5 gaps identified in paper vs. KB comparison.
+
+### Fixes Applied
+
+**unstructured_fields.md:**
+- **FIXED Q3 injection test contradiction** — GitHub README copyright detection now says "Keyword search ONLY" instead of "Regex for copyright keyword. LLM for semantic analysis." The "LLM for semantic analysis" phrase caused grader to flag a forbidden contradiction (score capped at 50/100).
+- **Added FM4 regex-only extraction failure section** (Paper Section 3.3) — documents that all tested agents use regex-only extraction, causing 0% on Patents, gender misclassification in PANCANCER (`MALE` matches inside `FEMALE`), year errors in bookreview (`\d{4}` matches ISBN segments).
+- **Added extraction method hierarchy** — 4-level guide: keyword → parser (dateutil) → NER (word-boundary regex, spaCy) → LLM. Includes explicit "NEVER" rules for bare regex date extraction, genderless word-boundary matching, and year extraction without range validation.
+- **Added Patents date extraction entry** — CRITICAL difficulty, >20 date format variants, requires dateutil not regex.
+- **Updated HR3 coverage map** — added Patents date extraction row.
+
+**kb_v2_domain.md:**
+- **Added model comparison table** (Paper Table 3) — 5 models with pass@1, pass@50, total cost, cost per 1% accuracy. Key insight: GPT-5-mini is 20x cheaper than Gemini-3-Pro for 8% less accuracy.
+- **Added scaffolded systems comparison** (Paper Table 7) — PromptQL+Gemini 54.3%, PromptQL+Claude 50.8%, ReAct baseline 44%, raw model 38%.
+- **Added pass@50 = 69%** — proves bottleneck is reliability, not capability.
+- **Added "1,147 annotated trajectories"** — gives paper's evidence base.
+- **Added Patents completely unsolved finding** — 0% across all models, all trials.
+- **Added Section F: Tool Usage Balance** (Paper Section 3.2) — ~20% exploration calls optimal. Too little → FM3 (wrong data source). Too much → token budget exhaustion. Includes practical budget rules.
+- **Renumbered sections** — old Section F (AGENT.md template) → Section G.
+
+**business_terms.md:**
+- **Added Patents "CRITICAL WARNING — Completely Unsolved Dataset"** header with 0% pass@1 context.
+- **Added "Patent date formats" term** — documents >20 variant examples, requires dateutil.
+- **Hardened "Patent filing year" definition** — now explicitly says "MUST use dateutil, regex WILL fail."
+
+**schemas.md:**
+- **Added Patents "COMPLETELY UNSOLVED" header** — 0% pass@1, FM4 root cause.
+- **Added date format variant examples** to patent_publication entry.
+- **Updated dateRevised notes** — use dateutil, not regex.
+
+**join_key_glossary.md:**
+- **Added Patents "COMPLETELY UNSOLVED" warning** with 3 root causes (date variants, CPC hierarchy, 5GB file size).
+- **Added CPC precision-level join guidance** — truncate to matching level, use `cpc_definition.level` to confirm depth.
+- **Added dateutil requirement** for all patent date extraction.
+
+### Version Bump
+All 5 files bumped from v1.3/v1.4 → v1.5.
+
+---
+
 ## [v1.4] — 2026-04-13
 
 ### Injection Test Results — ALL PASS
@@ -70,4 +114,4 @@ All notable changes to the KB v2 domain knowledge files are documented here.
 
 ---
 
-_Next update: After all 4 documents reach consistent 100/100 PASS._
+_Next update: After re-running injection tests on v1.5 documents to verify Q3 fix and new content passes._

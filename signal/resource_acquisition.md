@@ -1,16 +1,41 @@
-# Resource Acquisition Report - Team Mistral
+# Resource Acquisition Report — Team Mistral
 
-## Cloudflare Workers
-- **Status:** Not yet applied
-- **Priority:** Week 9
+## Overview
+
+This document tracks platforms and resources supporting development and evaluation.
+
+---
+
+## Accounts
+
+- X (Twitter): @TsegayAsse64592  
+- LinkedIn: Team Mistral  
+- Medium: Team Mistral + personal account  
+- Reddit: Active (r/LocalLLaMA engagement completed)  
+- Discord (Hugging Face): Planned  
+
+---
+
+## Cloud Resources
+
+### Cloudflare Workers
+- Status: Not yet applied  
+- Planned: Week 9  
+- Purpose: Deployment and API handling  
+
+---
 
 ## API Credits
-- **OpenAI Researcher Program:** To apply Week 9
-- **Anthropic Educational Credits:** To apply Week 9
 
-## Community Accounts Created
-- ✅ X (Twitter): @TsegayAsse64592
-- ✅ LinkedIn: Team-Mistral
-- ✅ Medium: Team-Mistral
-- ⏳ Reddit: Pending
-- ⏳ Discord: Pending
+- OpenAI Researcher Program: Planned  
+- Anthropic Educational Credits: Planned  
+
+- Purpose:
+  Support LLM experimentation and benchmarking  
+
+---
+
+## Summary
+
+Initial setup focused on communication and engagement platforms. Next phase focuses on compute and API resources for evaluation.
+

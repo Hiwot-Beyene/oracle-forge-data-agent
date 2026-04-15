@@ -1,7 +1,7 @@
 # KB v2 — Column Semantics (schemas.md)
 
 _Oracle Forge | Intelligence Officers | April 2026_
-_Status: v1.3 — Updated with explicit grader-aligned concepts (2026-04-13)_
+_Status: v1.5 — Paper-aligned: Patents unsolved warning, date extraction guidance, FM4 mitigations (2026-04-14)_
 
 ## How to Use This File
 
@@ -40,7 +40,7 @@ SQLite: `authors` table
 
 ## Book Reviews (query_bookreview)
 
-PostgreSQL: `books` table (bookreview_db)
+PostgreSQL: `books_info` table (bookreview_db)
 | Column | Type | Semantics | Notes |
 |--------|------|-----------|-------|
 | book_id / asin | varchar | Unique book identifier | Join key to SQLite reviews |
@@ -59,9 +59,9 @@ SQLite: `review` table (review_query.db)
 | review_time | text/int | When review was written | May be Unix timestamp — verify format |
 | helpful_vote | int | Count of "helpful" votes | Popularity/quality signal |
 | verified_purchase | int/bool | Whether reviewer bought the book | 1=verified, 0=not |
-| purchase_id | text | Transaction identifier | |
+| purchase_id | text | **Join key** — references `books_info.book_id` in PostgreSQL | FK to PostgreSQL books — name is misleading, this IS the cross-DB join key |
 
-**DB split:** Book category and language are in PostgreSQL. Reviews (rating, text, helpfulness) are in SQLite. **A cross-database join is required** to combine book metadata with review data. **Rating scale is 1.0 to 5.0** per individual review, not per book.
+**DB split:** Book category and language are in PostgreSQL `books_info`. Reviews (rating, text, helpfulness) are in SQLite `review`. **A cross-database join on `books_info.book_id` = `review.purchase_id` is required** to combine book metadata with review data. **Rating scale is 1.0 to 5.0** per individual review, not per book. **The SQLite join column is `purchase_id` (not `book_id`) — the name is misleading but it IS the FK to PostgreSQL.**
 
 ## CRM Arena Pro (query_crmarenapro)
 
@@ -215,7 +215,9 @@ Note: This table has 100+ columns. DuckDB: `pancancer_molecular.db` — Gene exp
 
 **DB split: Clinical data (including age fields, vital status, disease type) is in PostgreSQL, NOT DuckDB.** Gene expression and molecular data is in DuckDB.
 
-## Patents (query_PATENTS)
+## Patents (query_PATENTS) — **COMPLETELY UNSOLVED: 0% pass@1 across all models**
+
+**This is the hardest dataset in DAB.** No frontier model solved any Patents query in any trial (Paper Section 3.1). Primary failure: FM4 regex-based date extraction on >20 date format variants. Solving even 1 Patents query would be a novel contribution.
 
 PostgreSQL: `cpc_definition` table (patent_CPCDefinition)
 | Column | Type | Semantics | Notes |
@@ -225,12 +227,13 @@ PostgreSQL: `cpc_definition` table (patent_CPCDefinition)
 | titlePart | text | Partial title for this level | |
 | definition | text | Detailed classification description | |
 | level | int | Depth in CPC hierarchy (1-N) | Filter for level 5 = subgroup |
-| parents | text | Parent CPC codes | JSON/array — hierarchical navigation |
-| children | text | Child CPC codes | JSON/array — hierarchical navigation |
+| parents | text | Parent CPC codes | JSON/array — hierarchical navigation. Parse with `json.loads()` |
+| children | text | Child CPC codes | JSON/array — hierarchical navigation. Parse with `json.loads()` |
 | status | text | Active/deprecated status | Filter for active classifications |
-| dateRevised | text | Last revision date | |
+| dateRevised | text | Last revision date | **Use `dateutil.parser.parse()` — NOT regex** |
 
 SQLite: `patent_publication.db` — **Warning: 5GB file.** Schema TBD at runtime.
+**Date fields in this table use >20 variant formats.** Examples: "2019-03-05", "March 5, 2019", "dated 5th March 2019", "March the 18th, 2019", "filed 02/14/2020". **MUST use `dateutil.parser.parse()` or `pd.to_datetime()` — bare regex WILL fail.**
 
 ## Stock Index (query_stockindex)
 
@@ -280,4 +283,4 @@ Query pattern: Look up Symbol in SQLite, then query the matching DuckDB table.
 
 ---
 
-_CHANGELOG: v1.3 updated April 13 2026. Added bold DB split callouts, explicit JSON content definitions for Deps Dev, and grader-aligned concepts throughout._
+_CHANGELOG: v1.5 updated April 14 2026. Paper alignment: (1) Added Patents "COMPLETELY UNSOLVED" warning header. (2) Added date format variant examples and dateutil requirement. (3) Updated dateRevised and patent_publication notes. Prior: v1.3 (2026-04-13) bold DB split callouts and Deps Dev JSON definitions._

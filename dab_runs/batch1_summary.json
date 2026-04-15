@@ -1,0 +1,56 @@
+[
+  {
+    "dataset": "yelp",
+    "run_dir": "/week8-9/oracle-forge-data-agent/dab_runs/query_yelp/query1/logs/data_agent/doc_gemini20_yelp_q1_batch1",
+    "terminate_reason": "no_tool_call",
+    "llm_call_count": 1,
+    "final_result": "",
+    "llm_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_yelp/query1/logs/data_agent/doc_gemini20_yelp_q1_batch1/llm_calls.jsonl",
+    "tool_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_yelp/query1/logs/data_agent/doc_gemini20_yelp_q1_batch1/tool_calls.jsonl"
+  },
+  {
+    "dataset": "bookreview",
+    "run_dir": "/week8-9/oracle-forge-data-agent/dab_runs/query_bookreview/query1/logs/data_agent/doc_gemini20_bookreview_q1_batch1",
+    "terminate_reason": "no_tool_call",
+    "llm_call_count": 1,
+    "final_result": "",
+    "llm_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_bookreview/query1/logs/data_agent/doc_gemini20_bookreview_q1_batch1/llm_calls.jsonl",
+    "tool_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_bookreview/query1/logs/data_agent/doc_gemini20_bookreview_q1_batch1/tool_calls.jsonl"
+  },
+  {
+    "dataset": "crmarenapro",
+    "run_dir": "/week8-9/oracle-forge-data-agent/dab_runs/query_crmarenapro/query1/logs/data_agent/doc_gemini20_crmarenapro_q1_batch1",
+    "terminate_reason": "no_tool_call",
+    "llm_call_count": 1,
+    "final_result": "",
+    "llm_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_crmarenapro/query1/logs/data_agent/doc_gemini20_crmarenapro_q1_batch1/llm_calls.jsonl",
+    "tool_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_crmarenapro/query1/logs/data_agent/doc_gemini20_crmarenapro_q1_batch1/tool_calls.jsonl"
+  },
+  {
+    "dataset": "stockmarket",
+    "run_dir": "/week8-9/oracle-forge-data-agent/dab_runs/query_stockmarket/query1/logs/data_agent/doc_gemini20_stockmarket_q1_batch1",
+    "terminate_reason": "no_tool_call",
+    "llm_call_count": 1,
+    "final_result": "",
+    "llm_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_stockmarket/query1/logs/data_agent/doc_gemini20_stockmarket_q1_batch1/llm_calls.jsonl",
+    "tool_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_stockmarket/query1/logs/data_agent/doc_gemini20_stockmarket_q1_batch1/tool_calls.jsonl"
+  },
+  {
+    "dataset": "agnews",
+    "run_dir": "/week8-9/oracle-forge-data-agent/dab_runs/query_agnews/query1/logs/data_agent/doc_gemini20_agnews_q1_batch1",
+    "terminate_reason": "no_tool_call",
+    "llm_call_count": 1,
+    "final_result": "",
+    "llm_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_agnews/query1/logs/data_agent/doc_gemini20_agnews_q1_batch1/llm_calls.jsonl",
+    "tool_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_agnews/query1/logs/data_agent/doc_gemini20_agnews_q1_batch1/tool_calls.jsonl"
+  },
+  {
+    "dataset": "googlelocal",
+    "run_dir": "/week8-9/oracle-forge-data-agent/dab_runs/query_googlelocal/query1/logs/data_agent/doc_gemini20_googlelocal_q1_batch1",
+    "terminate_reason": "no_tool_call",
+    "llm_call_count": 1,
+    "final_result": "",
+    "llm_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_googlelocal/query1/logs/data_agent/doc_gemini20_googlelocal_q1_batch1/llm_calls.jsonl",
+    "tool_log_path": "/week8-9/oracle-forge-data-agent/dab_runs/query_googlelocal/query1/logs/data_agent/doc_gemini20_googlelocal_q1_batch1/tool_calls.jsonl"
+  }
+]

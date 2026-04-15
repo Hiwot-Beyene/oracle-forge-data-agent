@@ -1,0 +1,146 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  background: #0a0a0a;
+  color: #f5f5f5;
+}
+
+.shell {
+  max-width: 980px;
+  margin: 48px auto;
+  padding: 0 20px 48px;
+}
+
+.header {
+  margin-bottom: 24px;
+  border-bottom: 1px solid #2b2b2b;
+  padding-bottom: 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.header p {
+  margin: 8px 0 0;
+  color: #b8b8b8;
+}
+
+.panel {
+  background: #111;
+  border: 1px solid #2c2c2c;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 18px;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+}
+
+.row {
+  display: grid;
+  gap: 6px;
+}
+
+label {
+  color: #d9d9d9;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+select,
+textarea {
+  width: 100%;
+  background: #0a0a0a;
+  color: #f2f2f2;
+  border: 1px solid #3b3b3b;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  width: 140px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid #f5f5f5;
+  color: #111;
+  background: #f5f5f5;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+pre {
+  margin: 0;
+  background: #080808;
+  border: 1px solid #2f2f2f;
+  border-radius: 8px;
+  padding: 14px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error {
+  color: #ffb2b2;
+  border-color: #704040;
+}
+
+.tool-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.tool-list li {
+  margin: 4px 0;
+}
+
+.trace-grid {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: #dcdcdc;
+}
+
+.header .meta {
+  font-size: 12px;
+  color: #9a9a9a;
+}
+
+.panel h3 {
+  margin: 20px 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #c8c8c8;
+}
+
+.panel h3:first-of-type {
+  margin-top: 0;
+}
+
+.hint {
+  font-size: 12px;
+  color: #8e8e8e;
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.muted {
+  color: #8a8a8a;
+  font-size: 12px;
+}

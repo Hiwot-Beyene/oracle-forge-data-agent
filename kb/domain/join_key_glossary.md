@@ -1,7 +1,7 @@
 # KB v2 — Join Key Glossary (join_key_glossary.md)
 
 _Oracle Forge | Intelligence Officers | April 2026_
-_Status: v1.3 — Updated with explicit grader-aligned concepts (2026-04-13)_
+_Status: v1.5 — Paper-aligned: Patents CPC precision warning, exploration-before-join guidance (2026-04-14)_
 
 ---
 
@@ -46,6 +46,36 @@ df['normalized_name'] = df['name'].str.lower().str.strip()
 
 ---
 
+## Join Diagnostics (REQUIRED for every cross-DB join)
+
+After every cross-DB join, record these before proceeding:
+
+| Check | How | Red Flag |
+|-------|-----|----------|
+| Row count before join | `len(df_a)`, `len(df_b)` | Either is 0 → query returned nothing, check filters |
+| Row count after join | `len(df_merged)` | 0 → key mismatch, trigger Zero-Row Recovery below |
+| Match rate | `len(df_merged) / min(len(df_a), len(df_b))` | < 50% → suspect normalization issue |
+| Unmatched keys | `set(df_a[key]) - set(df_b[key])` | Sample 5 unmatched from each side, inspect format |
+| Duplicate explosion | `len(df_merged) > max(len(df_a), len(df_b))` | Many-to-many join — verify this is expected |
+
+**If match rate < 50%, do NOT proceed with the answer. Run the Zero-Row Recovery Protocol first.**
+
+---
+
+## Canonical Key Normalization (apply before joining)
+
+When join keys come from different databases, normalize both sides to a canonical form:
+
+1. Cast to string
+2. Strip whitespace
+3. Lowercase (unless key is case-sensitive, e.g., Salesforce 18-char IDs)
+4. Remove known prefixes/suffixes per dataset (see per-dataset rules below)
+5. Normalize zero-padding (either strip leading zeros or pad to fixed width)
+
+Apply the **same** function to both sides before joining.
+
+---
+
 ## Per-Dataset Join Keys
 
 ### AG News (query_agnews)
@@ -60,13 +90,15 @@ df['normalized_name'] = df['name'].str.lower().str.strip()
 ---
 
 ### Book Reviews (query_bookreview)
-**Databases:** PostgreSQL (books) + SQLite (reviews)
+**Databases:** PostgreSQL (`bookreview_db` — `books_info` table) + SQLite (`review_query.db` — `review` table)
 
 | Join Key | PostgreSQL Field | SQLite Field | Format Match | Normalization |
 |----------|-----------------|--------------|--------------|---------------|
-| book_id / title | `books` table identifier | `review` table book reference | Verify at runtime — may join on title or book_id | If title-based: lowercase + strip whitespace. If ID-based: cast to same type |
+| book_id ↔ purchase_id | `books_info.book_id` | `review.purchase_id` | Verify format match at runtime — both reference the same book identifier | Cast to same type if needed (varchar vs text) |
 
-**Cross-DB join required:** Yes. Query PG for book metadata, query SQLite for reviews, join on shared book identifier.
+**Cross-DB join required:** Yes. Query PostgreSQL for book metadata (category, language, publication_date), query SQLite for reviews (rating, text, helpful_vote), join on `books_info.book_id` = `review.purchase_id`.
+
+**NOTE:** The SQLite column is named `purchase_id` (not `book_id`) because it represents the purchased book. It IS the foreign key to PostgreSQL `books_info.book_id` — do not be misled by the column name.
 
 ---
 
@@ -142,14 +174,15 @@ df['normalized_name'] = df['name'].str.lower().str.strip()
 
 ---
 
-### Patents (query_PATENTS)
-**Databases:** SQLite (publications) + PostgreSQL (CPC definitions)
+### Patents (query_PATENTS) — **COMPLETELY UNSOLVED: 0% pass@1**
+**Databases:** SQLite (publications, 5GB) + PostgreSQL (CPC definitions)
 
 | Join Key | SQLite Field | PostgreSQL Field | Format Match | Normalization |
 |----------|-------------|-----------------|--------------|---------------|
-| CPC code | Patent CPC classification in `patent_publication` | `cpc_definition.symbol` | CPC format: `A01K2227/108` — may differ in precision level | Truncate to matching level, or join with `LIKE 'prefix%'` |
+| CPC code | Patent CPC classification in `patent_publication` | `cpc_definition.symbol` | CPC format: `A01K2227/108` — **precision levels differ between tables** | Truncate to matching level, or join with `LIKE 'prefix%'`. Use `cpc_definition.level` to confirm depth. |
 
 **Cross-DB join required:** Yes. Query SQLite for patent filings, PG for CPC definitions, join on CPC code.
+**Why Patents is unsolved:** (1) Date fields in patent_publication have >20 format variants — regex extraction fails. (2) CPC hierarchy navigation requires recursive parent/child traversal via JSON arrays. (3) 5GB SQLite file requires efficient filtered queries — full table scans will timeout. **Use `dateutil.parser.parse()` for ALL date extraction, never bare regex.**
 
 ---
 
@@ -179,15 +212,27 @@ df['normalized_name'] = df['name'].str.lower().str.strip()
 
 ## Zero-Row Join Recovery Protocol
 
-If a cross-DB join returns zero rows:
+If a cross-DB join returns zero rows or match rate < 50%:
+
 1. **Sample both sides:** Print 5 sample values of the join key from each DataFrame
 2. **Check types:** Are both the same type (string vs int)?
 3. **Check format:** Look for prefixes, case differences, whitespace, padding
 4. **Check this glossary:** Is there a known normalization for this dataset?
-5. **Apply normalization:** Use the pattern from this glossary
+5. **Apply canonical normalization:** Cast to string → strip → lowercase → remove prefixes → normalize padding
 6. **Retry once:** If still zero rows after normalization, log to KB v3 and report LOW confidence
-7. **Log the fix:** Record the normalization that worked in KB v3 for future runs
+7. **Log the fix to KB v3** using this exact format:
+
+```
+[Query]: <the original question>
+[Dataset]: <dataset name>
+[Join attempted]: <table_a.key> ↔ <table_b.key>
+[Mismatch cause]: <what was different — type, prefix, padding, case, etc.>
+[Fix applied]: <normalization that worked>
+[Result]: <match rate before fix> → <match rate after fix>
+```
+
+This log entry is read by future runs to avoid repeating the same failure.
 
 ---
 
-_CHANGELOG: v1.3 updated April 13 2026. Restored markdown table formatting. Embedded explicit grader-aligned concepts for all datasets._
+_CHANGELOG: v1.5 updated April 14 2026. Paper alignment: (1) Added Patents "COMPLETELY UNSOLVED" warning with 3 root causes. (2) Added dateutil requirement for patent date extraction. (3) Added CPC precision-level join guidance. Prior: v1.3 (2026-04-13) restored table formatting and grader-aligned concepts._

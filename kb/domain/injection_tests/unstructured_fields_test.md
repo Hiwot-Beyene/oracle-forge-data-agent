@@ -89,7 +89,7 @@ Forbidden contradictions:
 
 ## Test result
 
-**Run timestamp:** 2026-04-13 12:11 UTC
+**Run timestamp:** 2026-04-14 09:02 UTC
 **Model used:** google/gemini-2.0-flash-001
 **Document tested:** kb/domain/unstructured_fields.md
 **Overall result:** PASS
@@ -106,14 +106,14 @@ Forbidden contradictions:
   - [x] This extraction is rated HIGH difficulty in the HR3 coverage map
 
 **Actual answer:**
-Based solely on the provided document:
+Based on the document provided:
 
 *   **Database:** PostgreSQL `crm_support`
 *   **BANT stands for:** Budget, Authority, Need, and Timeline.
 *   **Tool:** `execute_python`
-*   **Difficulty Rating:** HIGH
+*   **Difficulty:** HIGH
 
-**Grader reasoning:** All required concepts are clearly present in the actual answer, and there are no forbidden contradictions.
+**Grader reasoning:** All required concepts are present and no forbidden contradictions are found.
 
 ---
 
@@ -131,10 +131,11 @@ Based solely on the provided document:
 **Actual answer:**
 Based on the document:
 
-*   **Open on Sundays:** The `business_description.hours` field in the `googlelocal_db` database contains this information. It is a semi-structured field containing "JSON array of operating hours per day of week" and should be parsed using PostgreSQL `hours::json` or `json_array_elements`, or in Python via `json.loads(hours)`.
-*   **Services offered:** The `business_description.MISC` field in the `googlelocal_db` database contains this information. It is a semi-structured field containing "JSON object with business attributes (services, amenities, accessibility)". This field should be parsed using PostgreSQL `MISC::json->>'key'` or in Python via `json.loads(misc)`.
+*   The `business_description.hours` field in the `googlelocal_db` (PostgreSQL) database contains information about whether a business is open on Sundays. It is a semi-structured field, specifically a JSON array. It should be parsed using PostgreSQL's `hours::json` or `json_array_elements` functions, or `json.loads(hours)` in Python.
 
-**Grader reasoning:** The answer covers all required concepts and contains no contradictions, so it receives a perfect score.
+*   The `business_description.MISC` field in the same database stores information about the services offered by a business. It is also a semi-structured field, specifically a JSON object. It should be parsed using PostgreSQL's `MISC::json->>'key'` to access nested key-value pairs, or `json.loads(misc)` in Python.
+
+**Grader reasoning:** All required concepts are present, and no forbidden contradictions are found, so the score is 100.
 
 ---
 
@@ -151,12 +152,12 @@ Based on the document:
 **Actual answer:**
 Based on the document:
 
-*   The README content for GitHub repositories is stored in DuckDB `repo_artifacts.db`.
-*   Repository metadata and language information is stored in SQLite `repo_metadata.db`.
-*   The extraction approach to determine whether GitHub repository README files contain copyright information is regex for the "copyright" keyword.
-*   The difficulty rating for this extraction is LOW.
+*   **Database holding README content:** DuckDB `repo_artifacts.db`
+*   **Database holding repository metadata:** SQLite `repo_metadata.db`
+*   **Extraction approach:** Keyword search ONLY: case-insensitive regex or SQL LIKE for the word "copyright". Do NOT use LLM extraction.
+*   **Difficulty:** LOW
 
-**Grader reasoning:** All required concepts are present and no forbidden contradictions are found, so the score is 100.
+**Grader reasoning:** All required concepts are clearly present and there are no contradictions, so the score is 100.
 
 ---
 
@@ -172,15 +173,19 @@ Based on the document:
   - [x] Step 5 log the extraction pattern to KB v3 recording field name extraction method used and success or failure
 
 **Actual answer:**
-The extraction protocol for unstructured fields consists of five steps:
+The extraction protocol is as follows when a query requires data from an unstructured field:
 
-1.  **IDENTIFY** the field from this inventory → Confirms the field exists and which DB holds it
-2.  **SAMPLE** 10 values from the field → Run: SELECT field FROM table LIMIT 10 → Verify the content matches what is documented here
-3.  **CHOOSE** extraction method → Simple keyword search: Use SQL LIKE/ILIKE or regex | Counting/length: Use SQL LENGTH() or string functions | Structured extraction: Use `execute_python` with LLM extraction | JSON parsing: Use SQL json functions or Python `json.loads`
-4.  **EXTRACT** and join back → Store extraction results in a pandas DataFrame → Join with other query results on the appropriate key
-5.  **LOG** the extraction pattern to KB v3 → Record: field name, extraction method used, success/failure
+1.  **IDENTIFY** the field from this inventory. This confirms the field exists and which DB holds it.
+2.  **SAMPLE** 10 values from the field. Run: `SELECT field FROM table LIMIT 10` to Verify the content matches what is documented here.
+3.  **CHOOSE** extraction method.
+    *   Simple keyword search: Use SQL LIKE/ILIKE or regex
+    *   Counting/length: Use SQL LENGTH() or string functions
+    *   Structured extraction: Use `execute_python` with LLM extraction
+    *   JSON parsing: Use SQL json functions or Python `json.loads`
+4.  **EXTRACT** and join back. Store extraction results in a pandas DataFrame and Join with other query results on the appropriate key.
+5.  **LOG** the extraction pattern to KB v3. Record: field name, extraction method used, success/failure.
 
-**Grader reasoning:** All five required concepts are present in the answer and there are no forbidden contradictions.
+**Grader reasoning:** All five required concepts are present in the answer, and there are no forbidden contradictions, so the score is 100.
 
 ---
 
@@ -195,14 +200,26 @@ The extraction protocol for unstructured fields consists of five steps:
   - [x] All semi-structured JSON fields are rated LOW difficulty because they need parsing not NLP extraction
 
 **Actual answer:**
-According to the document, the DAB datasets containing JSON-encoded semi-structured fields that need parsing are:
+Based on the document, the DAB datasets with JSON-encoded semi-structured fields are:
 
-*   **Google Local**: `business_description.hours` and `business_description.MISC`.
-*   **Deps Dev**: `packageinfo.Licenses` and `packageinfo.Advisories`.
-*   **Patents**: `cpc_definition.parents` and `cpc_definition.children`.
+*   **Google Local**:
+    *   Field: `business_description.hours`
+    *   Difficulty: LOW
+    *   Field: `business_description.MISC`
+    *   Difficulty: LOW
 
-All of these semi-structured fields are rated as **LOW** difficulty.
+*   **Deps Dev**:
+    *   Field: `packageinfo.Licenses`
+    *   Difficulty: LOW
+    *   Field: `packageinfo.Advisories`
+    *   Difficulty: LOW
+    *   Field: `packageinfo.Links`
+    *   Difficulty: implied to be LOW, since all semi-structured JSON fields are rated LOW
 
-**Grader reasoning:** All required concepts are present in the answer and no forbidden contradictions were found, so the score is 100.
+*   **Patents**:
+    *   Fields: `cpc_definition.parents`, `cpc_definition.children`
+    *   Difficulty: LOW
+
+**Grader reasoning:** All required concepts are present, and no contradictions are found; hence, the score is 100.
 
 ---

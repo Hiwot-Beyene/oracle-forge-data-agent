@@ -1,0 +1,112 @@
+sources:
+
+  dab-postgres-bookreview:
+    kind: postgres
+    host: ${PG_HOST}
+    port: ${PG_PORT}
+    database: bookreview_db
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+
+  dab-sqlite-bookreview:
+    kind: sqlite
+    database: ${SQLITE_BOOKREVIEW_PATH}
+
+  dab-mongo-yelp:
+    kind: mongodb
+    uri: "${MONGO_URI}"
+
+
+tools:
+
+  postgres-bookreview:
+    kind: postgres-sql
+    source: dab-postgres-bookreview
+    description: >
+      Query the bookreview PostgreSQL database.
+      Contains books_info table with Amazon book data.
+      Fields: title, author, price, rating_number, book_id.
+      Join with SQLite review table using book_id = purchase_id.
+    templateParameters:
+      - name: query
+        type: string
+        description: Read-only SQL query for bookreview PostgreSQL database.
+    statement: "{{.query}}"
+
+  sqlite-bookreview:
+    kind: sqlite-sql
+    source: dab-sqlite-bookreview
+    description: >
+      Query the bookreview SQLite database.
+      Contains review table with Amazon book reviews.
+      Fields: rating, title, text, purchase_id, review_time, helpful_vote, verified_purchase.
+      Join with PostgreSQL books_info using purchase_id = book_id.
+    templateParameters:
+      - name: query
+        type: string
+        description: Read-only SQL query for bookreview SQLite database.
+    statement: "{{.query}}"
+
+  mongo-yelp-business:
+    kind: mongodb-find
+    source: dab-mongo-yelp
+    description: >
+      Query the yelp MongoDB database business collection.
+      Fields: business_id (e.g. businessid_42), name, review_count, description (includes address/location text),
+      attributes, hours, is_open. There is no per-business star rating here; review scores live in DuckDB review.rating.
+      Pass filterJson as a JSON object string for the find() filter.
+    database: yelp_db
+    collection: business
+    limit: 200
+    filterPayload: |
+      {{ .filterJson }}
+    filterParams:
+      - name: filterJson
+        type: string
+        description: >
+          JSON object for MongoDB find filter, e.g. {"city": "Indianapolis", "state": "IN"}.
+
+  mongo-yelp-aggregate:
+    kind: mongodb-aggregate
+    source: dab-mongo-yelp
+    description: >
+      Read-only aggregation on yelp_db.business (counts of businesses, etc.).
+      Pass pipelineJson as a JSON array of stages. Location is usually matched via regex on description.
+      Star ratings are not on this collection; use the app yelp-analytics path for rating math with DuckDB review.
+    database: yelp_db
+    collection: business
+    readOnly: true
+    pipelinePayload: |
+      {{ .pipelineJson }}
+    pipelineParams:
+      - name: pipelineJson
+        type: string
+        description: >
+          JSON array of aggregation pipeline stages, e.g.
+          [{"$match": {"city": "Indianapolis", "state": "IN"}}, {"$group": {"_id": null, "avg_stars": {"$avg": "$stars"}}}].
+
+
+# Future: DuckDB via MotherDuck (GenAI Toolbox `kind: duckdb` or custom source) — point `database`
+# at an md: URI or a MotherDuck database name; keep read-only SQL aligned with app `run_duckdb`
+# (DuckDB dialect: strftime(ts, fmt), not SQLite strftime(fmt, ts)). Local files are already executed
+# in Flask with optional MOTHERDUCK_TOKEN + DUCKDB_LOCAL_USE_MOTHERDUCK=1 (ATTACH file + USE).
+
+toolsets:
+
+  dab-all:
+    - postgres-bookreview
+    - sqlite-bookreview
+    - mongo-yelp-business
+    - mongo-yelp-aggregate
+
+  dab-bookreview:
+    - postgres-bookreview
+    - sqlite-bookreview
+
+  dab-yelp:
+    - mongo-yelp-business
+    - mongo-yelp-aggregate
+
+  dab-relational:
+    - postgres-bookreview
+    - sqlite-bookreview
