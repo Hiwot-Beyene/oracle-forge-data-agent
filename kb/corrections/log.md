@@ -1,20 +1,243 @@
-# KB v3 — Corrections Log
+# KB v3 — Corrections Memory (Layer 5)
 
-Oracle Forge | Team Mistral | April 2026
+Structured learning memory the agent loads at session start (`kb/architecture/architecture_system_overview.md`, `agent/context_loader.py`). **Not** a raw run log.
 
-Status: In progress
+## Format (challenge documentation)
 
-## Entry Template
+- **Architecture / injection tests** (`kb/architecture/injection_tests/openai_agent_context_test.md`): each entry is **the query (or query class) that failed → what was wrong → correct approach**.
+- **Join-key failures** (`kb/domain/join_key_glossary.md`, “Log the fix to KB v3”): when the lesson is about keys or zero-row joins, include **`[Join attempted]`**, **`[Mismatch cause]`** (or “N/A” if not a key mismatch), **`[Fix applied]`**, and optional **`[Result]`** when you measured match rate.
 
-- Query:
-- Dataset:
-- Failure observed:
-- Root cause:
-- Corrected approach:
-- Verification:
-- Date:
-- Owner:
+Each block below follows that contract. **`[Source logs]`** points to the DataAgentBench harness trace for `query1` / **`run_2`** (`final_agent.json`, with `llm_calls.jsonl` and `tool_calls.jsonl` in the same directory). Entries are numbered for stable reference; the agent receives the **tail** of this file in context.
 
 ---
 
-No finalized correction entries yet.
+## Dataset coverage (all DAB `db_config.yaml` bundles)
+
+Every bundle under `DataAgentBench/query_*/db_config.yaml` appears below. `query_bookreview` maps to two entries (cross-engine + text extraction).
+
+| `query_*` bundle | Primary entries |
+|------------------|-----------------|
+| `query_bookreview` | E1, E2 |
+| `query_yelp` | E3 |
+| `query_agnews` | E4 |
+| `query_googlelocal` | E5 |
+| `query_stockmarket` | E6 |
+| `query_stockindex` | E6 |
+| `query_crmarenapro` | E7 |
+| `query_PATENTS` | E8 |
+| `query_GITHUB_REPOS` | E9 |
+| `query_PANCANCER_ATLAS` | E10 |
+| `query_DEPS_DEV_V1` | E11 |
+| `query_music_brainz_20k` | E12 |
+
+---
+
+## E1 — Cross-engine SQL (query_bookreview: PostgreSQL + SQLite)
+
+**[Query / pattern]:** Multi-table questions that need both `books_info` and `review` (e.g. decade vs rating).
+
+**[Dataset]:** `query_bookreview`
+
+**[What was wrong]:** Treating `review_database` as queryable inside a single PostgreSQL `JOIN`.
+
+**[Correct approach]:** Run **separate** `query_db` calls per logical DB; merge in `execute_python` using `join_key_glossary.md` (`books_info.book_id` ↔ `review.purchase_id`, normalize types).
+
+**[Join attempted]:** `books_info` ↔ `review` in one SQL  
+**[Mismatch cause]:** N/A — engines differ (Postgres vs SQLite); not a padding issue.  
+**[Fix applied]:** Two queries + merge on normalized keys.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_bookreview/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## E2 — Decade from unstructured `details` (query_bookreview)
+
+**[Query / pattern]:** Publication decade aggregations from `books_info.details`.
+
+**[Dataset]:** `query_bookreview`
+
+**[What was wrong]:** Using Python `//` in SQLite SQL or joining before extracting a year.
+
+**[Correct approach]:** Extract year in PostgreSQL with `regexp_match` / substring; decade = `CAST(year/10 AS INTEGER)*10` in SQL.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_bookreview/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## E3 — Yelp: Mongo ↔ DuckDB identity (query_yelp)
+
+**[Query / pattern]:** Location filters + ratings from Mongo businesses and DuckDB reviews.
+
+**[Dataset]:** `query_yelp`
+
+**[What was wrong]:** Joining Mongo `business_id` to DuckDB `business_ref` without prefix mapping, or skipping **`list_db`** so collection names don’t match the live catalog.
+
+**[Correct approach]:** Map **`businessid_*` ↔ `businessref_*`**. **`list_db`** on `businessinfo_database` first, then query with real collection names.
+
+**[Join attempted]:** `business.business_id` ↔ `review.business_ref`  
+**[Mismatch cause]:** Prefix difference (`businessid_` vs `businessref_`).  
+**[Fix applied]:** Align IDs before merge.
+
+**[Source logs]:** `/week8-9/oracle-forge-data-agent/dab_runs/query_yelp/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl` (harness: `run_agent.py --bench_root …/dab_runs`)
+
+---
+
+## E4 — AG News: Mongo articles + SQLite metadata (query_agnews)
+
+**[Query / pattern]:** Article text vs author/region metadata.
+
+**[Dataset]:** `query_agnews`
+
+**[What was wrong]:** Querying only one engine or joining without a shared key.
+
+**[Correct approach]:** MongoDB `articles` for title/description; SQLite `article_metadata` (+ `authors` as needed); merge in pandas on **`article_id`** (cast both sides to the same type if int/string mismatch) (`join_key_glossary.md`).
+
+**[Join attempted]:** `articles.article_id` ↔ `article_metadata.article_id`  
+**[Mismatch cause]:** Type or null handling.  
+**[Fix applied]:** `list_db` then explicit cast on join keys.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_agnews/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## E5 — Google Local: SQLite reviews + PostgreSQL businesses (query_googlelocal)
+
+**[Query / pattern]:** Business-level stats from reviews + metadata.
+
+**[Dataset]:** `query_googlelocal`
+
+**[What was wrong]:** One SQL string joining SQLite `review` to PostgreSQL `business_description`.
+
+**[Correct approach]:** Query each logical DB separately; join on **`gmap_id`** in Python. Never use `review.name` as the business name — it is the **reviewer** name (`join_key_glossary.md`).
+
+**[Join attempted]:** N/A if single cross-engine SQL was avoided.  
+**[Fix applied]:** `gmap_id` only; validate with samples.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_googlelocal/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## E6 — Stock market / index (query_stockmarket, query_stockindex)
+
+**[Query / pattern]:** Price or volatility questions across SQLite metadata + DuckDB trades.
+
+**[Dataset]:** `query_stockmarket`, `query_stockindex`
+
+**[What was wrong]:** Guessing DuckDB table/column names from a company or region name.
+
+**[Correct approach]:** Resolve **ticker** from SQLite `stockinfo` (or index metadata), then open the matching DuckDB table(s); many tickers are **separate tables** in DuckDB (`join_key_glossary.md`).
+
+**[Source logs]:**
+- `query_stockmarket`: `/week8-9/DataAgentBench/query_stockmarket/query1/logs/data_agent/run_2/final_agent.json` (+ `llm_calls.jsonl`, `tool_calls.jsonl` same folder)
+- `query_stockindex`: `/week8-9/DataAgentBench/query_stockindex/query1/logs/data_agent/run_2/final_agent.json` (+ same sibling files)
+
+---
+
+## E7 — CRM BANT (query_crmarenapro)
+
+**[Query / pattern]:** Lead qualification across CRM objects.
+
+**[Dataset]:** `query_crmarenapro`
+
+**[What was wrong]:** Single generic SQL without the six-DB layout (SQLite + DuckDB + Postgres).
+
+**[Correct approach]:** Use bundle CRM tables; normalize **Salesforce-style 15 vs 18 char IDs** when joining across DBs (`join_key_glossary.md`); merge stepwise in pandas.
+
+**[Join attempted]:** Cross-table lead / activity joins  
+**[Mismatch cause]:** 15-char vs 18-char `AccountId` / contact IDs.  
+**[Fix applied]:** Compare on first 15 case-insensitive characters when documented.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_crmarenapro/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## E8 — Patents CPC + publications (query_PATENTS)
+
+**[Query / pattern]:** CPC hierarchy, filing trends, EMA over years.
+
+**[Dataset]:** `query_PATENTS`
+
+**[What was wrong]:** Bare regex on patent dates; one engine for CPC + full text.
+
+**[Correct approach]:** Dates: **`dateutil.parser.parse()` or `pd.to_datetime()`** — not regex alone (`schemas.md`, `unstructured_fields.md`). SQLite publications + PostgreSQL `cpc_definition`; align CPC **precision levels** before join (`join_key_glossary.md`).
+
+**[Join attempted]:** `publication` CPC text ↔ `cpc_definition.symbol`  
+**[Mismatch cause]:** Different CPC depth / string format.  
+**[Fix applied]:** Truncate or `LIKE 'prefix%'` per level; confirm with `cpc_definition.level`.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_PATENTS/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## E9 — GitHub README copyright (query_GITHUB_REPOS)
+
+**[Query / pattern]:** README content vs language metadata.
+
+**[Dataset]:** `query_GITHUB_REPOS`
+
+**[What was wrong]:** Using only SQLite `languages` / `repos` for README text.
+
+**[Correct approach]:** Filter non-Python in SQLite; read README bodies from DuckDB **artifacts** (`unstructured_fields.md`); join on normalized **`repo_name`**.
+
+**[Join attempted]:** `repos.repo_name` ↔ DuckDB artifact repo id  
+**[Mismatch cause]:** `owner/repo` formatting or case.  
+**[Fix applied]:** Lowercase, strip whitespace, single canonical form.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_GITHUB_REPOS/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## E10 — PanCancer expression + histology (query_PANCANCER_ATLAS)
+
+**[Query / pattern]:** Gene expression by histology for a cohort.
+
+**[Dataset]:** `query_PANCANCER_ATLAS`
+
+**[What was wrong]:** Single join because both concepts appear in one English question, or assuming both sides use the same engine.
+
+**[Correct approach]:** **PostgreSQL** `clinical_info` for clinical/histology; **DuckDB** `molecular_database` for gene/expression data (`db_config.yaml`, `join_key_glossary.md`). Merge on **TCGA barcode**; **12-char vs 16-char** → truncate to shared prefix. Exclude histology in square brackets if the query says so.
+
+**[Join attempted]:** Clinical ↔ molecular by patient  
+**[Mismatch cause]:** Barcode length mismatch.  
+**[Fix applied]:** Truncate both sides to common prefix length.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_PANCANCER_ATLAS/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## E11 — NPM top packages (query_DEPS_DEV_V1)
+
+**[Query / pattern]:** “Latest release per package” + popularity.
+
+**[Dataset]:** `query_DEPS_DEV_V1`
+
+**[What was wrong]:** Ranking all version rows together.
+
+**[Correct approach]:** Dedupe to **latest release per package** in SQLite `packageinfo`, then join DuckDB star/popularity tables for top-N.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_DEPS_DEV_V1/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## E12 — MusicBrainz tracks + sales (query_music_brainz_20k)
+
+**[Query / pattern]:** Revenue or units for a track (title/artist) across catalogs.
+
+**[Dataset]:** `query_music_brainz_20k`
+
+**[What was wrong]:** Joining SQLite `tracks` to DuckDB `sales` without resolving `track_id`, or matching on title alone when duplicates exist.
+
+**[Correct approach]:** Resolve **`track_id`** in SQLite `tracks` (use `source_id` / `source_track_id` if needed per glossary), then filter **`sales`** in DuckDB by that `track_id` (`join_key_glossary.md`).
+
+**[Join attempted]:** `tracks` ↔ `sales`  
+**[Mismatch cause]:** Missing `track_id` or type mismatch.  
+**[Fix applied]:** Stable `track_id` join; sample keys before full merge.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_music_brainz_20k/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## Provenance (operators; not part of learning entries)
+
+- Harness: DataAgentBench `run_agent.py` + `common_scaffold.DataAgent`. Oracle Forge `app.py` is separate.
+- Last full sweep: `query1`, `run_2`, `google/gemini-2.0-flash-001`, 2026-04-15. Yelp logs under `dab_runs/…/run_2/` when canonical path not writable.

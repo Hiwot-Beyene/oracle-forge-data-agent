@@ -94,7 +94,7 @@ Evidence: successful runs on text/JSON dependent queries use `execute_python` wi
 Evidence: query answers involving terms like `repeat purchase rate`, `intraday volatility`, `BANT`, `BRCA`, and `Pass@1` align with `kb/domain/business_terms.md`.
 
 7. **Evaluation harness supports repeated scoring and regression visibility.**  
-Evidence: `eval/score_log/` includes timestamped run files with per-query validity and pass@1 trends.
+Evidence: `eval/scores/score_log.jsonl` includes timestamped run lines with per-query validity and pass@1 trends.
 
 8. **Corrections loop is active and used in subsequent runs.**  
 Evidence: `kb/corrections/log.md` contains failure->fix entries and later traces show those corrections referenced.
@@ -139,7 +139,7 @@ Evidence: `results/` output, architecture note, and submission checklist artifac
 | Environment and data readiness | Load DAB assets and validate engines/tools | `planning/evidence/infra_checks/*` |
 | Context baseline | Freeze KB v1/v2 with injection proof | `kb/*/CHANGELOG.md` + injection logs |
 | Agent routing and execution loop | Complete all-engine query and merge flow | tool traces + run logs |
-| Evaluation and corrections loop | Run, score, capture failures, apply fixes | `eval/score_log/*` + `kb/corrections/log.md` |
+| Evaluation and corrections loop | Run, score, capture failures, apply fixes | `eval/scores/score_log.jsonl` + `kb/corrections/log.md` |
 | Submission packaging | Assemble reproducible repository and benchmark outputs | `results/*` + updated `README.md` |
 
 ---
