@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Oracle Forge Query Console</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <h1>Oracle Forge Query Console</h1>
+        <p>Black-label interface for 4 heterogeneous databases</p>
+        <p class="meta">
+          OpenRouter key: {% if openrouter_configured %}loaded (planner enabled){% else %}missing — set OPENROUTER_API_KEY in <code>oracle-forge-data-agent/.env</code> or DataAgentBench/.env{% endif %}
+        </p>
+      </header>
+
+      <section class="panel">
+        <form method="post" class="form">
+          <div class="row">
+            <label for="input">Question</label>
+            <textarea id="input" name="input" rows="6" placeholder="Ask in natural language. You can still paste SQL if needed.">{{ user_input }}</textarea>
+          </div>
+
+          <button type="submit">Run</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Execution Trace</h2>
+        {% if execution_trace %}
+        <div class="trace-grid">
+          <div><strong>Executor:</strong> {{ execution_trace.executor }}</div>
+          <div><strong>Tool:</strong> {{ execution_trace.tool }}</div>
+          <div><strong>Database:</strong> {{ execution_trace.database }}</div>
+          {% if execution_trace.dataset_db %}
+          <div><strong>Dataset DB:</strong> {{ execution_trace.dataset_db }}</div>
+          {% endif %}
+          <div><strong>Reason:</strong> {{ execution_trace.reason }}</div>
+        </div>
+        <pre>{{ execution_trace.resolved_query }}</pre>
+        {% else %}
+        <pre>No route selected yet. Submit a question to see selected tool and database.</pre>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Result</h2>
+        {% if error %}
+        <pre class="error">{{ error }}</pre>
+        {% elif response %}
+        <pre>{{ response | tojson(indent=2) }}</pre>
+        {% else %}
+        <pre>Run a query to see output.</pre>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Capabilities</h2>
+        <h3>GenAI Toolbox (<code>tools.yaml</code>)</h3>
+        <p class="hint">These are the only tools the <code>toolbox invoke</code> binary exposes; bookreview + yelp Mongo are what is wired today.</p>
+        {% if toolbox_tools_detail and toolbox_tools_detail|length > 0 %}
+        <ul class="tool-list">
+          {% for t in toolbox_tools_detail %}
+          <li>
+            <code>{{ t.name }}</code>
+            <span class="muted">— {{ t.kind }} · source {{ t.source }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <pre>No tools found in tools.yaml</pre>
+        {% endif %}
+
+        <h3>App executors (not in YAML)</h3>
+        <ul class="tool-list">
+          {% for e in app_capabilities.executors %}
+          <li><code>{{ e.name }}</code> — {{ e.description }}</li>
+          {% endfor %}
+        </ul>
+        <p class="hint">{{ app_capabilities.note }}</p>
+
+        <h3>Discovered file databases (all DAB SQLite / DuckDB)</h3>
+        {% if discovered_datasets and discovered_datasets|length > 0 %}
+        <ul class="tool-list">
+          {% for label, path in discovered_datasets %}
+          <li><strong>{{ label }}</strong><br /><code class="muted">{{ path }}</code></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <pre>No query_*/db_config.yaml SQLite or DuckDB entries found under DataAgentBench.</pre>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

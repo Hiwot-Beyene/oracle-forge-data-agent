@@ -1,4 +1,16 @@
-from agent.context_loader import build_context_layers
+from agent.context_loader import build_context_layers, build_router_planner_user_payload
+
+
+def test_build_router_planner_user_payload_merges_dab_and_kb():
+    payload = build_router_planner_user_payload(
+        "Maximum adjusted close for RealReal in 2020",
+        {"dab_key": "stub"},
+    )
+    assert payload["question"].startswith("Maximum")
+    assert payload["dab_candidates"] == {"dab_key": "stub"}
+    assert "architecture" in payload["kb_layers"]
+    assert "domain" in payload["kb_layers"]
+    assert "corrections" in payload["kb_layers"]
 
 
 def test_build_context_layers_for_known_dataset():

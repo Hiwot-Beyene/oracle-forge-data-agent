@@ -10,3 +10,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Local GenAI Toolbox CLI binary (large; install per README / release)
+agent/mcp/toolbox
+agent/mcp/toolbox.old

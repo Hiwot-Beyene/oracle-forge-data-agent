@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 import re
 
 
@@ -265,6 +265,67 @@ def _truncate(value: str, limit: int) -> str:
     if len(value) <= limit:
         return value
     return value[: limit - 40] + "\n\n[truncated for prompt budget]"
+
+
+def infer_canonical_dataset_from_question(question: str) -> Optional[str]:
+    """Map question text to a canonical query_* dataset id for KB schema scoping (optional)."""
+    if not question:
+        return None
+    lower = question.lower()
+    for alias, canonical in DATASET_ALIASES.items():
+        if len(alias) < 4:
+            continue
+        if alias in lower or canonical.lower() in lower:
+            return canonical
+    if "realreal" in re.sub(r"[^a-z0-9]+", "", lower):
+        return "query_stockmarket"
+    if all(w in lower for w in ("decade", "rating", "book")) or (
+        "publication" in lower and "rating" in lower and ("distinct" in lower or "average" in lower)
+    ):
+        return "query_bookreview"
+    return None
+
+
+# Challenge brief: multi-layer context (architecture + domain + corrections) — see repo docs.
+DAB_CHALLENGE_ROUTER_HINT = (
+    "DataAgentBench expects routing across PostgreSQL, MongoDB, SQLite, and DuckDB using real schemas and "
+    "domain semantics — not a single default database. Use dab_candidates for machine-readable paths and "
+    "live_schema; use kb_layers for join keys and column meaning."
+)
+
+
+def build_router_planner_user_payload(
+    user_question: str,
+    route_candidates_compact: Dict[str, Any],
+    repo_root: Optional[Path] = None,
+    *,
+    max_kb_layer_chars: int = 3200,
+    corrections_tail_lines: int = 80,
+) -> Dict[str, Any]:
+    """
+    Single assembly point for the OpenRouter planner user message: DAB route candidates + KB layers (DRY).
+    Keeps discovery/schema logic in the app; KB assembly stays here per challenge “three layers” requirement.
+    """
+    dataset = infer_canonical_dataset_from_question(user_question)
+    layers = build_context_layers(
+        dataset=dataset,
+        user_question=user_question,
+        repo_root=repo_root,
+        max_layer_chars=max_kb_layer_chars,
+        corrections_tail_lines=corrections_tail_lines,
+    )
+    return {
+        "question": user_question,
+        "dab_candidates": route_candidates_compact,
+        "kb_layers": {
+            "architecture": layers.layer_1_architecture,
+            "domain": layers.layer_2_domain,
+            "corrections": layers.layer_3_corrections,
+        },
+        "kb_warnings": layers.warnings,
+        "dataset_hint_for_kb": dataset,
+        "challenge_alignment": DAB_CHALLENGE_ROUTER_HINT,
+    }
 
 
 if __name__ == "__main__":
