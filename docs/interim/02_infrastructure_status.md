@@ -158,8 +158,18 @@ files rather than ~100-byte pointer stubs.
 
 ### How to bring the stack up
 
+The compose file, the idempotent `mongo-init` service, and the dataset
+mounts documented above live on the team's DAB fork at
+`https://github.com/Hiwot-Beyene/DataAgentBench`, on the `neb-branch`
+branch. Upstream `ucbepic/DataAgentBench` does not ship this compose.
+
 ```bash
-cd /home/neba/tenx/week8-9/DataAgentBench
+git lfs install
+git clone -b neb-branch https://github.com/Hiwot-Beyene/DataAgentBench.git
+cd DataAgentBench
+git lfs pull                                 # fetch the large .db / .duckdb / .sql files
+bash download.sh                             # fetch patent_publication.db (~5 GB, over LFS limit)
+
 docker compose up -d                        # starts postgres, mongodb, mongo-init
 docker compose build python-data            # builds the sandbox image
 docker ps --filter "name=dab-"              # expect dab-postgres + dab-mongodb (dab-mongo-init exits 0)
