@@ -1,0 +1,24 @@
+# Oracle Forge eval — paths resolved relative to repository root (parent of eval/).
+# Override DAB_ROOT in the environment to point at your DataAgentBench clone.
+#
+# dab_root: absolute or relative to repo root. If unset in env, config_loader tries
+#   $DAB_ROOT, then <repo_root>/../DataAgentBench (sibling checkout).
+
+dab_root: ${DAB_ROOT}
+
+held_out_manifest: eval/held_out/manifest.yaml
+score_log: eval/scores/score_log.jsonl
+trace_sidecar: eval/scores/trace_summary.jsonl
+
+profiles:
+  first_run:
+    label: first_run
+    default_run_suffix: run_1
+    trace_overrides:
+      query_yelp: smoke_yelp_2
+  submission:
+    label: submission
+    default_run_suffix: run_2
+    trace_overrides:
+      query_bookreview: run_4
+      query_yelp: smoke_yelp_3
