@@ -190,7 +190,15 @@ SQLite: `tracks.db` — tracks table
 | length | real | Track duration | Likely in seconds |
 | language | text | Song language | |
 
-DuckDB: `sales.duckdb` — Revenue/sales data by track, platform, and geography. Schema TBD at runtime.
+DuckDB: `sales.duckdb` — `sales` table
+| Column | Type | Semantics | Notes |
+|--------|------|-----------|-------|
+| sale_id | INTEGER | Primary key | |
+| track_id | INTEGER | FK → SQLite `tracks.track_id` | A single canonical song is spread across multiple `track_id`s (see `business_terms.md` § Song vs track) |
+| country | VARCHAR | Buyer country | Values: `Canada`, `USA`, `France`, `Germany`, `UK` (and more) |
+| store | VARCHAR | Sales store | Values: `Apple Music`, `iTunes`, `Spotify`, `Amazon Music`, `Google Play` |
+| units_sold | INTEGER | Units sold | |
+| revenue_usd | DOUBLE | Revenue in USD for this sale row | Aggregate with `SUM(revenue_usd)` |
 
 ## PANCANCER Atlas (query_PANCANCER_ATLAS)
 
@@ -267,6 +275,51 @@ DuckDB: `stocktrade_query.db` — Note: 2,754 tables (likely one per ticker).
 Query pattern: Look up Symbol in SQLite, then query the matching DuckDB table.
 
 **Key facts:** `Company Description` in SQLite stockinfo is an **unstructured text field** for company business descriptions. The authoritative source for company name to ticker resolution is the SQLite stockinfo table.
+
+## Yelp (query_yelp)
+
+MongoDB: `business` collection (`businessinfo_database`)
+| Field | Type | Semantics | Notes |
+|-------|------|-----------|-------|
+| business_id | string | Unique business identifier | Format: `businessid_N`. Join key to DuckDB reviews — see join_key_glossary.md § Yelp |
+| name | string | Business name | Display name |
+| review_count | string/int | Total review count | Stored as string — cast to int if needed |
+| is_open | string | Open status | `"1"` = open, `"0"` = closed |
+| attributes | dict or `"None"` | Business features | Values are **strings** (`"True"`, `"False"`, `"{'garage': False, ...}"`). Use `ast.literal_eval` to parse nested dicts. `"None"` (string) = no attribute data. |
+| description | string | Natural language description | Format: `"Located at [address] in [City], [STATE], this [type] offers [categories]."` — state and categories must be extracted via string parsing |
+| hours | dict | Operating hours by day | |
+
+**Attributes interpretation:** A feature is "offered" if its key exists in `attributes` and is not `"None"`. Do NOT require a sub-value of `True` — presence of the key means the feature is listed. Example: `BusinessParking: {'garage': False, 'lot': True}` = business parking is offered.
+
+**Category extraction from `description`:** No dedicated `categories` field exists. Extract using string split on known anchors:
+```python
+anchors = ["services in ", "services, including ", "services including ", "destination for "]
+anchor = next((a for a in anchors if a in desc), None)
+if anchor:
+    cats = desc.split(anchor)[1].split(".")[0]
+    cats = cats.replace(", and ", ", ").replace(" and ", ", ").split(", ")
+```
+
+**State extraction from `description`:** The format is consistently `in [City], [STATE], this...`. Use `r',\s*([A-Z]{2})\s*,'`.
+
+DuckDB: `review` table (`user_database`)
+| Field | Type | Semantics | Notes |
+|-------|------|-----------|-------|
+| business_ref | string | FK to MongoDB business | Format: `businessref_N` — strip prefix for join |
+| rating | string/int | Review score 1–5 | Returned as string — always `pd.to_numeric()` before aggregation |
+| date | string | Review date | Format: `YYYY-MM-DD HH:MM:SS` — use `LIKE '2018-%'` for year filtering |
+| user_id | string | Reviewer identifier | |
+
+---
+
+## Book Reviews (query_bookreview) — Date/Decade extraction
+
+**`books_info.details` (PostgreSQL):** Unstructured text field containing publication year and other metadata. To extract decade:
+1. Extract year with `regexp_match(details, '\d{4}')` or `SUBSTRING(details FROM '\d{4}')` in PostgreSQL.
+2. Compute decade in SQL: `CAST(FLOOR(year::int / 10) * 10 AS INTEGER)`.
+3. Do NOT use Python `//` operator inside a SQL string — it is not valid SQL syntax.
+
+---
 
 ## Authoritative Table Selection Guide
 
