@@ -8,6 +8,48 @@ This repository is the **Oracle Forge** stack: a Flask web console, an MCP-style
 
 ---
 
+## Challenge alignment (TRP1 rubric and practitioner manual)
+
+This section maps programme expectations to concrete artifacts so facilitators are not misled by wording in the manual that assumes a single integration style.
+
+| Challenge / manual claim | Where it is satisfied in this stack |
+|--------------------------|-------------------------------------|
+| **Four DB types** (Postgres, Mongo, SQLite, DuckDB) | **Benchmark path:** `DataAgentBench` `db_config.yaml` + `query_db` / native `db_utils`. **Forge path:** [`agent/mcp/tools_dab_generated.yaml`](agent/mcp/tools_dab_generated.yaml) (from [`agent/mcp/dab_toolbox_codegen.py`](agent/mcp/dab_toolbox_codegen.py)) plus local executors in `app.py` when needed. |
+| **`{answer, query_trace, confidence}`** (pedagogical contract) | **Answer** → `final_result` in `final_agent.json`. **Trace** → `messages`, tool logs, `tool_calls.jsonl` / `llm_calls.jsonl`; export via [`eval/challenge_contract.py`](eval/challenge_contract.py) and `scripts/export_run_contract.py`. **Confidence** → enum `high \| medium \| low \| unknown` from documented rules (not a fake float). |
+| **MCP Toolbox** | **Forge / planner / console:** Google `toolbox` via **`toolbox … invoke`** and `--configs` (CLI automation is the default here). The manual’s HTTP server flow (`./toolbox --config …`, `curl :5000/v1/tools`) is equally valid; this repo does not require the HTTP server for benchmark runs. **Important:** the **default DAB benchmark loop** uses **`list_db` / `query_db` / `execute_python`**, not MCP—see dual-path diagram below. |
+| **Sandbox (code outside the LLM)** | **Primary:** DataAgentBench [`common_scaffold/tools/ExecTool.py`](https://github.com/ucbepic/DataAgentBench/blob/main/common_scaffold/tools/ExecTool.py) (`execute_python` in the Docker image, e.g. [`DataAgentBench/Dockerfile`](../DataAgentBench/Dockerfile)). That satisfies the challenge’s “sandboxed execution” intent without duplicating an insecure ad-hoc `POST /execute` service in this repo. |
+| **Self-correction** | DAB’s agent **surfaces tool errors to the LLM** so it can retry (by design). The Forge UI adds **sanitized** API errors and optional transient retries (see `app.py`). KB v3 (`kb/corrections/`) closes the loop across sessions. |
+
+**Scope — all 12 DAB bundles:** The benchmark UI and `BenchmarkService` discover every `query_*` dataset under `DataAgentBench`. MCP tools are generated per bundle from each `db_config.yaml` (`tools_dab_generated.yaml`). KB routing (`agent/context_loader.py`) maps questions to the correct `query_*` hint for **all** slugs, not only bookreview/yelp.
+
+**Dual execution paths (do not conflate):**
+
+```mermaid
+flowchart LR
+  subgraph benchmarkPath [DAB_benchmark_path]
+    RA[run_agent.py]
+    DA[DataAgent]
+    QDB[query_db_native_drivers]
+    EP[execute_python_Docker]
+    RA --> DA --> QDB
+    DA --> EP
+  end
+  subgraph forgePath [Forge_UI_path]
+    FL[Flask_app.py]
+    TB[toolbox_CLI_invoke]
+    FL --> TB
+  end
+  subgraph shared [Shared_context]
+    KB[context_loader_kb_layers]
+    KB --> RA
+    KB --> FL
+  end
+```
+
+**Facilitator note — MCP Toolbox modes:** Google’s toolbox can run as an **HTTP MCP server** (manual: `--config`, port 5000) or as a **CLI** that **`invoke`s** named tools with a JSON payload. Oracle Forge uses **CLI invoke** for reproducible scripts and the Flask app; teams may still run the HTTP server for exploration.
+
+---
+
 ## Team members and roles
 
 Roster is maintained from the Sprint 01 inception record (`planning/sprint_01_inception.md`).
@@ -37,7 +79,7 @@ flowchart TB
         KBv2["kb/domain — schemas, join glossary, business terms"]
         KBv3["kb/corrections — failure log; tail read at session start"]
         BC["agent/benchmark_context.py — build_benchmark_runtime_context"]
-        MCP["MCP config — agent/mcp/tools.yaml + toolbox"]
+        MCP["MCP config — tools_dab_generated.yaml + toolbox CLI"]
         KBv1 --- BC
         KBv2 --- BC
         KBv3 --- BC
@@ -155,6 +197,7 @@ Minimum for the benchmark UI and agent:
 
 - **`OPENROUTER_API_KEY`** — required for LLM calls.
 - Optional: **`OPENROUTER_ROUTER_MODEL`**, **`BENCHMARK_LLM`**, **`MOTHERDUCK_TOKEN`**, **`DUCKDB_MOTHERDUCK_URI`** per your stack.
+- **Google MCP Toolbox + DuckDB:** set **`MCP_TOOLBOX_CONFIGS`** to merge `agent/mcp/tools.yaml` and **`agent/mcp/tools_duckdb.yaml`** (comma-separated paths). The DuckDB file is **auto-generated** for every DAB DuckDB dataset (same sources as `tools_dab_generated.yaml`); regenerate with `python3 -m agent.mcp.dab_toolbox_codegen`. Use a **DuckDB-enabled** `toolbox` binary. Override paths with **`DAB_TOOLBOX_DUCKDB_URI_<SLUG>`** (see `.env.example`) or legacy **`DUCKDB_YELP_USER_PATH`** for Yelp; set **`MOTHERDUCK_TOKEN`** when using **`md:…`**. The benchmark harness (`run_agent.py`) still uses DataAgentBench’s native DuckDB driver; MCP is for the Forge toolbox / planner paths.
 
 ### 4. Run the web application
 
@@ -171,7 +214,7 @@ Defaults: **`http://127.0.0.1:8080`** (or `http://0.0.0.0:8080` from other machi
 
 ### 5. Smoke-check the benchmark path
 
-From the UI, select a dataset and query, then **Run One Trial** (one `run_<n>` unless `BENCHMARK_RUN_ONE_K` is greater than 1). On failure, check:
+From the UI, select a dataset and query, then **Run One Trial** (always allocates exactly one new `run_<n>`). Use **Best of K (retries)** for up to `BENCHMARK_RUN_ONE_K` attempts (default `3`), stopping early when a trial validates. On failure, check:
 
 - Terminal logs from **`benchmark_service`** (full `run_agent` stdout/stderr on failure).
 - `results/benchmark_debug.log` and `results/benchmark_ops_log.jsonl`.
@@ -191,10 +234,12 @@ See **`eval/README.md`** for manifest-driven scoring, `DAB_ROOT` overrides for t
 | `app.py` | Flask app: query console, benchmark routes, OpenRouter client, DuckDB/Mongo helpers. |
 | `benchmark_service.py` | Catalog discovery, `run_agent` orchestration, validation, jsonl exports. |
 | `agent/benchmark_context.py` | KB packaging for DAB trials. |
-| `agent/mcp/` | Toolbox and `tools.yaml` for MCP-style tools. |
+| `agent/mcp/` | Toolbox binary, `dab_toolbox_codegen.py`, `tools_dab_generated.yaml` (default), legacy `tools.yaml`. |
 | `kb/` | Architecture, domain, evaluation, corrections — agent ground truth. |
 | `eval/` | Scoring harness, manifests, score logs. |
-| `results/` | Benchmark logs and submission artifacts (gitignored if configured). |
+| `results/` | Benchmark logs, `challenge_contracts.jsonl`, batch `team_results_*.json`, PR template. |
+| `scripts/` | `export_run_contract.py`, `run_dab_benchmark_matrix.py` (batch + resume). |
+| `utils/` | `dab_paths`, `toolbox_config`, `trace_summary` (+ tests). |
 
 ---
 

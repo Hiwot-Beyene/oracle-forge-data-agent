@@ -2,7 +2,7 @@
 **Project:** Oracle Forge Data Agent  
 **Programme:** TRP1 FDE Programme — Tenacious Intelligence Corp  
 **Team:** Team Mistral  
-**Prepared by:** Drivers — Nebiyou Belayineh, Hiwot Beyene  
+**Prepared by:** Drivers — Nebiyou Belaineh, Hiwot Beyene  
 **Operations snapshot date:** April 14, 2026  
 **Status:** In progress
 
