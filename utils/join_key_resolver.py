@@ -174,14 +174,32 @@ class JoinKeyResolver:
         if key_category == 'customer_id':
             if 'sqlite' in from_db_type.lower() and 'postgres' in to_db_type.lower():
                 # SQLite uses CUST-00123, PostgreSQL uses 123
+                self._conversion_cache[cache_key] = KeyConversion(
+                    source_format=KeyFormat.CUST_PREFIXED,
+                    target_format=KeyFormat.INTEGER,
+                    conversion_func='cust_prefixed_to_int',
+                    description='CUST-prefixed to integer'
+                )
                 return self.cust_prefixed_to_int(str(value))
             elif 'postgres' in from_db_type.lower() and 'sqlite' in to_db_type.lower():
                 # PostgreSQL uses 123, SQLite uses CUST-00123
+                self._conversion_cache[cache_key] = KeyConversion(
+                    source_format=KeyFormat.INTEGER,
+                    target_format=KeyFormat.CUST_PREFIXED,
+                    conversion_func='int_to_cust_prefixed',
+                    description='Integer to CUST-prefixed'
+                )
                 return self.int_to_cust_prefixed(value)
-        
+
         # CRMArenaPro order ID resolution
         if key_category == 'order_id':
             if 'sqlite' in from_db_type.lower() and 'postgres' in to_db_type.lower():
+                self._conversion_cache[cache_key] = KeyConversion(
+                    source_format=KeyFormat.ORD_PREFIXED,
+                    target_format=KeyFormat.INTEGER,
+                    conversion_func='ord_prefixed_to_int',
+                    description='ORD-prefixed to integer'
+                )
                 return self.ord_prefixed_to_int(str(value))
         
         # Field name mapping (no format change)
@@ -295,19 +313,18 @@ class JoinKeyResolver:
         Returns:
             Dictionary mapping source keys to matching target keys
         """
-        # Normalize target keys for lookup
-        normalized_targets = set()
+        # Convert target keys to source format so we can match against source keys directly
+        target_by_source_key: Dict[Any, Any] = {}
         for tk in target_keys:
             norm = self.normalize_key(tk, to_db_type, from_db_type, key_category)
-            normalized_targets.add(norm)
-        
-        # Create mapping
+            target_by_source_key[norm] = tk
+
+        # Map source keys to their matching target key
         mapping = {}
         for sk in source_keys:
-            norm_sk = self.normalize_key(sk, from_db_type, to_db_type, key_category)
-            if norm_sk in normalized_targets:
-                mapping[sk] = norm_sk
-        
+            if sk in target_by_source_key:
+                mapping[sk] = target_by_source_key[sk]
+
         return mapping
 
 

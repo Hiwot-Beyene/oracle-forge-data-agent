@@ -53,9 +53,49 @@ class TestQueryContext:
         assert "Previous error: format mismatch" in prompt
 
 
+@pytest.fixture
+def temp_kb():
+    """Create temporary knowledge base for testing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        kb_path = Path(tmpdir) / "kb"
+        domain_path = kb_path / "domain"
+        schemas_path = domain_path / "schemas"
+        schemas_path.mkdir(parents=True)
+
+        # Create test schema file
+        schema_content = """# Yelp Dataset Schema
+## Table: businesses
+| Column | Type |
+|--------|------|
+| business_id | VARCHAR |
+| name | VARCHAR |
+| stars | FLOAT |
+"""
+        (schemas_path / "yelp_schema.md").write_text(schema_content)
+
+        # Create join key glossary
+        glossary_content = """# Join Key Glossary
+### Yelp Dataset
+| Entity | Format | Resolution |
+|--------|--------|------------|
+| Business ID | string | No conversion |
+"""
+        (domain_path / "join_key_glossary.md").write_text(glossary_content)
+
+        # Create domain terms
+        terms_content = """# Domain Terms
+### "active"
+**Dataset:** Yelp
+**Definition:** User has written at least one review
+"""
+        (domain_path / "domain_terms.md").write_text(terms_content)
+
+        yield tmpdir
+
+
 class TestMultiPassRetriever:
     """Tests for MultiPassRetriever class."""
-    
+
     @pytest.fixture
     def temp_kb(self):
         """Create temporary knowledge base for testing."""

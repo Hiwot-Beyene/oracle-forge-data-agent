@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime
 from unittest.mock import Mock, patch, MagicMock
 
-from utils.benchmark_wrapper import (
+from utils.benchmark_harness_wrapper import (
     BenchmarkHarness,
     QueryTrace,
     ToolCall,
@@ -66,9 +66,29 @@ class TestQueryTrace:
         assert trace.tool_calls[0].tool_name == "query_postgres"
 
 
+@pytest.fixture
+def temp_dab():
+    """Create temporary DAB structure for testing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        dab_path = Path(tmpdir) / "DataAgentBench"
+
+        # Create dataset directory
+        query_dir = dab_path / "query_yelp" / "query1"
+        query_dir.mkdir(parents=True)
+
+        # Create query.json
+        query_data = {"query": "Find businesses with 5 stars"}
+        (query_dir / "query.json").write_text(json.dumps(query_data))
+
+        # Create ground_truth.txt
+        (query_dir / "ground_truth.txt").write_text("42")
+
+        yield tmpdir, dab_path
+
+
 class TestBenchmarkHarness:
     """Tests for BenchmarkHarness class."""
-    
+
     @pytest.fixture
     def temp_dab(self):
         """Create temporary DAB structure for testing."""
@@ -379,7 +399,7 @@ class TestConvenienceFunctions:
         mock_agent = Mock()
         mock_agent.run.return_value = ("42", [])
         
-        with patch('utils.benchmark_wrapper.BenchmarkHarness') as MockHarness:
+        with patch('utils.benchmark_harness_wrapper.BenchmarkHarness') as MockHarness:
             mock_harness = Mock()
             mock_harness.run_query.return_value = QueryTrace(
                 query_id="1",
@@ -406,7 +426,7 @@ class TestConvenienceFunctions:
             assert mock_harness.save_trace.call_count == 2
     
     def test_compute_pass_at_1_function(self):
-        with patch('utils.benchmark_wrapper.BenchmarkHarness') as MockHarness:
+        with patch('utils.benchmark_harness_wrapper.BenchmarkHarness') as MockHarness:
             mock_harness = Mock()
             mock_harness.compute_pass_at_1.return_value = 0.75
             MockHarness.return_value = mock_harness

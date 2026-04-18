@@ -442,7 +442,11 @@ class SchemaIntrospector:
         
         if join_paths:
             sections.append("## Join Paths")
-            for path in set(join_paths):  # Deduplicate
+            seen: List[JoinPath] = []
+            for p in join_paths:
+                if p not in seen:
+                    seen.append(p)
+            for path in seen:
                 sections.append(f"- {path.source_table}.{path.join_keys[0][0]} ↔ {path.target_table}.{path.join_keys[0][1]}")
                 if path.format_conversion:
                     sections.append(f"  Note: {path.format_conversion}")
