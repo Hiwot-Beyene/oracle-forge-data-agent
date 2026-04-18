@@ -41,10 +41,23 @@ def main() -> int:
     if not first or not sub:
         print("Need both first_run and submission rows in score log.", file=sys.stderr)
         return 2
-    p0 = float(first.get("pass_at_1", 0))
-    p1 = float(sub.get("pass_at_1", 0))
+    metric_name = "pass_at_1_stratified"
+    if metric_name not in first or metric_name not in sub:
+        metric_name = "pass_at_1"
+    p0 = float(first.get(metric_name, 0))
+    p1 = float(sub.get(metric_name, 0))
     ok = p1 >= p0
-    print(json.dumps({"first_run_pass_at_1": p0, "submission_pass_at_1": p1, "regression_ok": ok}, indent=2))
+    print(
+        json.dumps(
+            {
+                "metric": metric_name,
+                "first_run_metric_value": p0,
+                "submission_metric_value": p1,
+                "regression_ok": ok,
+            },
+            indent=2,
+        )
+    )
     return 0 if ok else 1
 
 

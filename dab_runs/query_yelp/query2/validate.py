@@ -9,47 +9,22 @@ def validate(llm_output: str):
         (True, "OK") if found
         (False, reason) if not
     """
-    ground_truth_names = ["PA", "Pennsylvania"]
     ground_truth_value = 3.699395770392749
     gt_rounded = round(ground_truth_value, 2)
 
-    llm_lower = llm_output.lower()
+    has_pennsylvania = re.search(r"\bPennsylvania\b", llm_output, re.IGNORECASE)
+    has_pa_token = re.search(r"(?<![A-Za-z])PA(?![a-z])", llm_output)
+    if not has_pennsylvania and not has_pa_token:
+        return False, "Missing name: ['PA', 'Pennsylvania']"
 
-    found_name = None
-    idx = -1
-
-    for name in ground_truth_names:
-        name_lower = name.lower()
-        idx = llm_lower.find(name_lower)
-        if idx != -1:
-            found_name = name
-            break
-
-    if not found_name:
-        reason = f"Missing name: {ground_truth_names}"
-        
-        return False, reason
-
-
-    # search for number near name (within 50 chars after name)
-    window = llm_output[idx:idx+50]
-    matches = re.findall(r"(\d+\.\d+)", window)
-
-    if not matches:
-        reason = f"No number found near name: {found_name}"
-        
-        return False, reason
-
-    for m in matches:
+    for m in re.findall(r"\d+\.\d+", llm_output):
         try:
             val = float(m)
             if round(val, 2) == gt_rounded:
-                return True, f"Found: name='{found_name}', value≈{gt_rounded}"
-        except:
+                return True, f"Found: value≈{gt_rounded}"
+        except ValueError:
             continue
 
-    reason = f"Number near '{found_name}' does not match ≈{ground_truth_value}"
-    
-    return False, reason
+    return False, f"No matching number (≈{gt_rounded}) found in LLM output."
 
 

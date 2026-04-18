@@ -1,5 +1,7 @@
-# Held-out evaluation: query1 only, traces under logs/data_agent/<run_suffix>/final_agent.json
-# Run suffix is passed to the harness (--run-suffix). Same datasets for baseline vs submission.
+# Full benchmark evaluation: all queries across all datasets with multi-trial runs.
+# Harness discovers query folders (query1..queryN) per dataset when query_ids: all.
+# Each attempt is expected at:
+#   query_<dataset>/<query_id>/logs/data_agent/run_<trial>/final_agent.json
 
 datasets:
   - query_bookreview
@@ -15,4 +17,5 @@ datasets:
   - query_DEPS_DEV_V1
   - query_music_brainz_20k
 
-query_id: query1
+query_ids: all
+trial_count: 5

@@ -53,11 +53,16 @@ def _validate_score_rows(rows: list[dict]) -> None:
             _fail(f"score_log row per_query must be a non-empty list: role={r.get('run_role')}")
         if int(r["n_total"]) <= 0:
             _fail(f"score_log n_total must be > 0: role={r.get('run_role')}")
+        if "pass_at_1_stratified" in r and "pass_at_1_flat" not in r:
+            _fail("schema_version 2 rows must include pass_at_1_flat.")
 
-    p0 = float(by_role["first_run"]["pass_at_1"])
-    p1 = float(by_role["submission"]["pass_at_1"])
+    metric = "pass_at_1_stratified"
+    if metric not in by_role["first_run"] or metric not in by_role["submission"]:
+        metric = "pass_at_1"
+    p0 = float(by_role["first_run"][metric])
+    p1 = float(by_role["submission"][metric])
     if p1 < p0:
-        _fail(f"submission pass@1 regressed: first_run={p0}, submission={p1}")
+        _fail(f"submission {metric} regressed: first_run={p0}, submission={p1}")
 
 
 def _validate_trace_sidecar(path: Path, score_rows: list[dict]) -> None:
@@ -112,12 +117,14 @@ def main() -> int:
     cfg = load_config(args.config)
     score_log = Path(cfg["score_log"])
     trace_sidecar = Path(cfg["trace_sidecar"])
+    failure_backlog = Path(cfg.get("failure_backlog") or (repo_root() / "eval" / "scores" / "failure_backlog.jsonl"))
     mirror = repo_root() / "results" / "harness_score_log.jsonl"
     probes = repo_root() / "probes" / "probes.md"
 
     rows = _read_jsonl(score_log)
     _validate_score_rows(rows)
     _validate_trace_sidecar(trace_sidecar, rows)
+    _ = _read_jsonl(failure_backlog)
     _ = _read_jsonl(mirror)
     _validate_probes(probes)
 
@@ -128,6 +135,7 @@ def main() -> int:
                 "checks": [
                     "score_log shape + regression",
                     "trace_summary coverage",
+                    "failure_backlog presence",
                     "results mirror present",
                     "probes format + 15+ rows + 3+ categories + measurable post-fix scores",
                 ],

@@ -1,41 +1,70 @@
 # Evaluation harness
 
-Uses **DataAgentBench** `common_scaffold/validate/validate.py` and each query’s `validate.py` + `ground_truth.csv`. Paths come from **`eval/config.yaml`** and **`DAB_ROOT`** (see `.env.example`); no hardcoded benchmark paths in code beyond config defaults.
+Uses **DataAgentBench** `common_scaffold/validate/validate.py` and each query’s `validate.py` + `ground_truth.csv`.
+
+## Challenge-aligned scope
+
+- Full benchmark: 12 datasets, all query folders (`query1..queryN`), configured by `eval/held_out/manifest.yaml`.
+- Multi-trial runs: default `trial_count: 5`, expected run folder pattern `run_<trial>`.
+- Stratified scoring: per-query pass@1 -> per-dataset average -> benchmark average.
 
 ## Run (repository root)
 
 ```bash
-export DAB_ROOT=/path/to/DataAgentBench   # optional if sibling ../DataAgentBench exists
+export DAB_ROOT=/path/to/DataAgentBench
 
+# Option A: score existing traces
 python -m eval.harness --reset-log
+
+# Option B: generate missing traces, then score
+python -m eval.harness --reset-log --execute-missing --llm gpt-5-mini --iterations 100
+
+# Option C: regenerate all traces, then score
+python -m eval.harness --reset-log --execute-all --llm gpt-5-mini --iterations 100
+
 python -m eval.regression_suite
 python -m eval.validate_outputs
+python -m eval.correction_loop
 ```
 
-- **`--profile first_run`** / **`--profile submission`** — repeat flag; default runs both profiles from `eval/config.yaml`.
-- **`--dry-run`** — print JSON only; do not append logs.
-- **`--reset-log`** — truncate `eval/scores/score_log.jsonl`, `eval/scores/trace_summary.jsonl`, and `results/harness_score_log.jsonl` before writing.
+## Benchmark UI workflow
 
-## Run roles (strict meaning)
+The app now runs in benchmark-only mode. Start it with:
 
-- **`first_run`**: immutable baseline role used for "before" measurement (defaults to `run_1` in `config.yaml`).
-- **`submission`**: candidate/final role used for "after" measurement (defaults to `run_2` + explicit `trace_overrides`).
-- Regression policy is strict: `submission.pass_at_1 >= first_run.pass_at_1`.
+```bash
+cd /week8-9/oracle-forge-data-agent
+python3 app.py
+```
 
-## Layout
+From the UI:
 
-| File | Role |
-|------|------|
-| `harness.py` | CLI: validate stored traces, append score log + trace sidecar + `results/` mirror |
-| `scorer.py` | Load DAB `validate`, score one answer |
-| `trace_logger.py` | Summarize `final_agent.json` (tool counts, duration) |
-| `regression_suite.py` | Exit 1 if `submission.pass_at_1` < `first_run.pass_at_1` |
-| `validate_outputs.py` | Exit 1 if artifacts/evidence violate challenge requirements |
-| `config.yaml` / `config_loader.py` | Repo-relative paths, profiles, `trace_overrides` |
-| `held_out/manifest.yaml` | Held-out datasets × `query1` |
-| `scores/score_log.jsonl` | Append-only aggregate metrics |
+1. select dataset + question text (query picker)
+2. click **Run One Trial** (auto assigns next `run_<n>`)
+3. or click **Run Until N** to fill trials up to target
+4. click **Export Submission JSON** for PR-ready DAB rows
 
-## Docs
+Generated files:
 
-- Scoring: `kb/evaluation/README.md`
-- Adversarial probes (challenge location): **`probes/probes.md`** (repo root, not under `eval/`)
+- `results/benchmark_submission_rows.jsonl` (normalized rows cache)
+- `results/benchmark_ops_log.jsonl` (validation + runtime metadata)
+- `results/dab_submission_<timestamp>.json` (leaderboard payload)
+
+## Key flags
+
+- `--profile first_run` / `--profile submission` (repeatable; default runs both).
+- `--execute-missing` runs `DataAgentBench/run_agent.py` only for missing traces.
+- `--execute-all` reruns all benchmark attempts from manifest.
+- `--no-hints` disables `--use_hints` when invoking DAB runner.
+- `--dry-run` prints JSON only, without writing logs.
+
+## Outputs
+
+- `eval/scores/score_log.jsonl`: run-level metrics with `pass_at_1_stratified`, `pass_at_1_flat`, `per_dataset`, `per_query`.
+- `eval/scores/trace_summary.jsonl`: per-attempt trace summaries.
+- `eval/scores/failure_backlog.jsonl`: failed attempts linked to correction categories.
+- `results/harness_score_log.jsonl`: mirror of score log.
+- `kb/corrections/pending_from_eval.md`: auto-generated correction backlog template (`python -m eval.correction_loop`).
+
+## Regression rule
+
+- `submission` must not regress against `first_run` on `pass_at_1_stratified` (fallback `pass_at_1` for legacy rows).
