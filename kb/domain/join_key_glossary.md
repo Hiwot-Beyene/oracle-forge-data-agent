@@ -210,6 +210,19 @@ Apply the **same** function to both sides before joining.
 
 ---
 
+### Yelp (query_yelp)
+**Databases:** MongoDB `businessinfo_database` (business collection) + DuckDB `user_database` (review table)
+
+| Join Key | MongoDB Field | DuckDB Field | Format Match | Normalization |
+|----------|---------------|--------------|--------------|---------------|
+| business identifier | `business.business_id` | `review.business_ref` | **Prefix mismatch** — `businessid_N` vs `businessref_N` | Replace `businessid_` with `businessref_` (or strip both prefixes and join on the integer N) |
+
+**Cross-DB join required:** Yes. Always run `list_db` on `businessinfo_database` first to confirm collection names. Map IDs before merging: `df['business_ref'] = df['business_id'].str.replace('businessid_', 'businessref_')`.
+
+**MongoDB limit:** Always specify an explicit `limit` in MongoDB queries. Use a small limit for sampling/exploration; omit or set `"limit": 0` for aggregation queries requiring all rows.
+
+---
+
 ## Zero-Row Join Recovery Protocol
 
 If a cross-DB join returns zero rows or match rate < 50%:
