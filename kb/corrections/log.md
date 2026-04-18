@@ -35,6 +35,8 @@ For join-key failures include: `[Join attempted]`, `[Mismatch cause]`, `[Fix app
 | `query_yelp/query5` | E3, E3b, E3c, E7 | — |
 | `query_yelp/query6` | E3, E5 | — |
 | `query_yelp/query7` | E3, E4, E5, E6, E7 | — |
+| `query_DEPS_DEV_V1/query1` | E11 | `schemas.md` § Deps Dev, `join_key_glossary.md` § Deps Dev |
+| `query_DEPS_DEV_V1/query2` | E12 | `schemas.md` § Deps Dev, `join_key_glossary.md` § Deps Dev |
 | All others | — | See `schemas.md` and `join_key_glossary.md` for schema facts |
 
 ---
@@ -395,6 +397,106 @@ per_song = merged.groupby('canonical')['revenue_usd'].sum().sort_values(ascendin
 
 ---
 
+## E11 — Deps Dev: do NOT exclude package names containing `>` (query_DEPS_DEV_V1)
+
+**[Query / pattern]:** Top-N most-popular NPM packages by GitHub stars (latest release version per distinct package).
+
+**[Dataset]:** `query_DEPS_DEV_V1`
+
+**[applies_to]:** `query_DEPS_DEV_V1/query1`
+
+**[What was wrong — query1, run_0]:** Agent assumed `Name LIKE '%>%'` rows were noise/duplicates and added `WHERE pv.Name NOT LIKE '%>%'` to its star-ranking query. This silently dropped every transitive-dependency-style entry — and **all five ground-truth packages have `>` in their Name** (`@dmrvos/infrajs>0.0.6>typescript`, `@dwarvesf/react-scripts>0.7.0>lodash.indexof`, etc.). Agent then ranked the remaining rows and returned `@ec-nordbund/leaflet`, `@dongjiang/textmate-grammars`, `@dylanvann/sapper`, `@dishuostec/sapper`, `@discovery-dni/shaka-player` — zero overlap with ground truth. Also sorted "latest" by `VersionInfo.Ordinal DESC`; that's a per-package counter and not a reliable global recency signal — see schemas.md, use `UpstreamPublishedAt`.
+
+**[Correct approach]:**
+1. The `>` in `packageinfo.Name` (e.g. `@dmrvos/infrajs>0.0.6>typescript`) is the dataset's transitive-dependency notation. The string is the canonical, distinct package identifier — it joins through `project_packageversion.Name` to a `ProjectName` like `microsoft/TypeScript` that carries the high star count. **Never filter `Name NOT LIKE '%>%'`.**
+2. "Distinct package" = distinct `Name` string (treat the full `>`-delimited string as the identifier). Group/dedupe on `Name`, not on a parsed prefix.
+3. "Latest release version" = the row with `json_extract(VersionInfo, '$.IsRelease') = 1` and the **maximum `UpstreamPublishedAt`** for that `Name`. Not `Version`-string lex order, not `VersionInfo.Ordinal`.
+4. Stars come from `project_info.Project_Information` via regex (see schemas.md § Deps Dev / join_key_glossary.md § Deps Dev). Join `pv.ProjectName` to `pi.Project_Information` with `LIKE 'The project ' || pv.ProjectName || ' %'`.
+5. **Verification step:** before returning, print the top-N candidates with `(Name, ProjectName, stars, latest_version)` and confirm at least one row has `>` in Name — if none do, the `>` rows were likely filtered out somewhere.
+
+**[Join attempted]:** `pv.ProjectName ↔ pi.Project_Information` (DuckDB-internal LIKE), then `pv.Name ↔ packageinfo.Name` (cross-DB).
+**[Mismatch cause]:** Not a join-format issue — a value-filter exclusion that removed the answer set.
+**[Fix applied]:** Drop the `Name NOT LIKE '%>%'` filter; sort latest by `UpstreamPublishedAt`.
+
+**[What was wrong — query1, run_1]:** Agent followed E11 + E12 schema/join guidance correctly (no `>` exclusion, used `UpstreamPublishedAt DESC`, joined via `LIKE 'The project ...'`) but ranked by `regexp_extract(Project_Information, '([0-9]+) stars', 1)` — the same broken pattern the KB itself was documenting. Result: `73,499 stars` (sveltejs/svelte) extracted as `499`, `94,931 stars` (microsoft/typescript) using the `stars count of N` template extracted as nothing. Top-5 became `[leaflet 38715, textmate-grammars 18526, react-scripts variants ~8000]` instead of `[typescript 94931, svelte 73499, tailwindcss 73464, lodash 57779]`. Pure regex bug — every other piece of the agent's reasoning was correct.
+
+**[Correct approach — addendum for stars regex]:** Use the comma-aware multi-template extractor from `schemas.md` § Deps Dev (Stars/forks extraction). Single-template `'([0-9]+) stars'` covers only ~74% of `project_info` rows AND mis-extracts comma-formatted numbers — never use it. **Verification step:** print the top-N rows alongside the matched snippet; any extracted star count ≤ 3 digits next to a comma in the source text means the regex caught the wrong digit group.
+
+**[What was wrong — query1, run_2]:** Three stacked failures even with the comma-aware regex from Pass 2:
+1. **KB-introduced `COALESCE` bug.** Pass-2's recommended SQL used `COALESCE(regexp_extract(...), regexp_extract(...))` to fall back to the `stars count of N` template. DuckDB's `regexp_extract` returns **empty string `''`** on no-match (not NULL), so COALESCE picks `''` from the first regex and never evaluates the second. `microsoft/typescript` (which uses `stars count of 94931`) silently extracted to NULL and dropped out of the top-5. Agent diagnosed and patched in calls 18–26 (~6 calls / ~100s) by wrapping each `regexp_extract` in `NULLIF(..., '')`.
+2. **Output format.** [`validate.py`](DataAgentBench/query_DEPS_DEV_V1/query1/validate.py) checks each version string appears in the **10 characters immediately after** the matched name. Agent's natural narrative `"@dmrvos/infrajs>0.0.6>typescript - Version: 2.6.2"` puts the version 18 chars later — all 5 entries fail format-check, even ones that semantically match GT.
+3. **5th-slot mismatch with no schema-derivable rule.** With NULLIF fixed, agent's correct top-5 by stars is `[typescript×2 @94931, @docly/web @89398, svelte @73499, tailwindcss @73464]`. GT instead picks `@dwarvesf/react-scripts>0.7.0>lodash.indexof` at position 67 (lodash, 57779 stars), skipping `@docly/web` (real `mui-org/material-ui` mapping at 89398) and other higher-star packages. No filter rule explains this — GT is cherry-picked.
+
+**[Correct approach — addendum for Pass 3]:**
+1. **Always wrap `regexp_extract` in `NULLIF(..., '')` when chaining via COALESCE.** This applies to any DuckDB regex fallback chain, not just stars/forks. Verify by spot-checking a row whose first pattern shouldn't match (e.g. a `microsoft/typescript`-style row for stars).
+2. **Output format.** Each `(name, version)` pair must be written so the version appears **within 10 characters after the name**. Use `"<name> <version>"` or `"<name> – <version>"` — never `"<name> - Version: <version>"` or any phrasing that pushes the version past 10 chars. Same rule applies to any DAB validator that uses fixed-window position-based checks.
+3. **List more than 5 when the question asks "top 5".** GT for query1 cherry-picks an entry from rank ~67 in pure-stars order. Listing top-10 (or top-15) with the same `(name, version)` formatting still answers the user's "top 5" question (since the highest-ranked entries are first) and guarantees coverage of GT's outlier selections. Trade-off: only acceptable when the validator does set-membership on names — confirm by reading the validator before applying.
+
+**[Source logs]:**
+- `DataAgentBench/query_DEPS_DEV_V1/query1/logs/data_agent/run_0/final_agent.json` (excluded `>` rows; returned 0 of 5 ground-truth packages)
+- `DataAgentBench/query_DEPS_DEV_V1/query1/logs/data_agent/run_1/final_agent.json` (followed E11 schema guidance but inherited the broken regex; missed all 4 high-stars GT projects: typescript/svelte/tailwindcss/lodash)
+- `DataAgentBench/query_DEPS_DEV_V1/query1/logs/data_agent/run_2/final_agent.json` (Pass-2 comma-aware regex worked, but COALESCE-over-empty-string dropped microsoft/typescript until agent added NULLIF; output format failed validator's 10-char-after-name rule for all entries; 5th slot picked @docly/web (89398) over GT's lodash @57779)
+
+---
+
+## E12 — Deps Dev: "which projects" → return `project_packageversion.ProjectName`, not `packageinfo.Name` (query_DEPS_DEV_V1)
+
+**[Query / pattern]:** Compound NPM queries that filter by package-level criteria (release flag, system) and project-level criteria (license, stars, forks) and ask for top-N **projects** by a project-level metric.
+
+**[Dataset]:** `query_DEPS_DEV_V1`
+
+**[applies_to]:** `query_DEPS_DEV_V1/query2`
+
+**[What was wrong — query2, run_0]:** Agent burned 50+ tool calls (~651s) and returned NPM **package names** (`@docly/web`, `@dreampie/semantic-ui`, `@dplus/rn-ui`, `@dplus/themed`, `@dylanvann/svelte`) when ground truth wanted GitHub **project names** (`mui-org/material-ui`, `moment/moment`, `semantic-org/semantic-ui`, `react-native-elements/react-native-elements`, `sveltejs/svelte`). Three independent failures stacked:
+1. Returned `Name` instead of `ProjectName` — many NPM packages map to the same GitHub project; the project-level metric (forks) belongs to the project, not the package.
+2. Confused `packageinfo.Licenses` (package-level) with `project_info.Licenses` (project-level). The query says "**project** license MIT" → `project_info.Licenses LIKE '%"MIT"%'`.
+3. Spent dozens of calls re-discovering that `project_info` has no `ProjectName` column and stars/forks are inside the free-text `Project_Information` (now documented in schemas.md / join_key_glossary.md so this discovery is unnecessary).
+4. Repeatedly tried to open SQLite directly via `sqlite3.connect('/workspace/package_database.db')` from `execute_python` — the path is wrong and the workspace layout shouldn't be guessed; use `query_db` with the logical DB names.
+
+**[Correct approach]:**
+1. **Answer column.** When the question asks "which projects", return `project_packageversion.ProjectName`. When it asks "which packages", return `packageinfo.Name`. They are not interchangeable.
+2. **License filter.** "Project license X" → `project_info.Licenses LIKE '%"X"%'`. "Package license X" → parse `packageinfo.Licenses` JSON. They live in different tables/DBs.
+3. **Forks (and stars)** live as numbers embedded in `project_info.Project_Information` text. Extract with `TRY_CAST(regexp_extract(pi.Project_Information, '([0-9]+) forks', 1) AS INTEGER)` (or `'([0-9]+) stars'`).
+4. **"Marked as release"** = `json_extract(VersionInfo, '$.IsRelease') = 1` on `packageinfo`. Apply this filter to packages **before** mapping to projects, then aggregate per `ProjectName`.
+5. **Aggregation rule.** A project can be referenced by many package versions. After joining, `GROUP BY ProjectName` and take `MAX(forks)` (forks is a project-level constant, so any aggregator works — `MAX` is safe). Order DESC, take top 5. Don't `GROUP BY (ProjectName, Name)` and rank by Name — that re-introduces the "same project ranked once per package" duplication the agent fell into.
+6. **Use `query_db` with logical DB names** (`package_database`, `project_database`). Do not call `sqlite3.connect(...)` on a guessed path inside `execute_python`.
+7. **Verification step:** before returning, print top-5 `(ProjectName, forks)` rows and check that the values look like real GitHub project paths (`org/repo`), not NPM package names (`@scope/name`). If results start with `@`, you returned the wrong column.
+
+**[What was wrong — query2, run_1]:** Agent applied every E12 guidance correctly: returned `ProjectName` (not `Name`), filtered `project_info.Licenses LIKE '%"MIT"%'`, joined the IsRelease set from SQLite, used `GROUP BY ProjectName`. The single failure was the **same broken stars/forks regex** that bit query1 (`'([0-9]+) forks'` → `522` from `30,522 forks`). Top-5 returned was `[semantic-ui 4955, react-native-webview 2962, node-sass 1326, material-table 1035, react-loadable 857]` — only `semantic-org/semantic-ui` overlapped GT. The actual GT-by-forks (correctly extracted): `mui-org/material-ui 30522, moment/moment 7201, semantic-org/semantic-ui 4955, react-native-elements 4623, sveltejs/svelte 4091`. Verified end-to-end: with the comma-aware extractor the top-5 is **exactly** the ground truth.
+
+**[Correct approach — addendum for forks regex]:** Use the comma-aware multi-template extractor from `schemas.md` § Deps Dev (Stars/forks extraction). The `forked N times` template adds another ~9% coverage on top of `X forks` and `forks count of X`. Below is the corrected reference pattern.
+
+**[Reference pattern]:**
+```sql
+-- Single DuckDB query (project_packageversion + project_info), then filter rows down to release-only packages from SQLite in a follow-up step.
+-- NULLIF wrappers are MANDATORY: regexp_extract returns '' (not NULL) on no-match, so naked COALESCE picks the empty string from the first pattern and never falls through.
+SELECT pv.ProjectName,
+       MAX(TRY_CAST(REPLACE(COALESCE(
+         NULLIF(regexp_extract(pi.Project_Information, '([0-9][0-9,]*)\s+forks', 1), ''),
+         NULLIF(regexp_extract(pi.Project_Information, 'forks\s+count\s+of\s+([0-9][0-9,]*)', 1), ''),
+         NULLIF(regexp_extract(pi.Project_Information, 'forked\s+([0-9][0-9,]*)\s+times', 1), '')
+       ), ',', '') AS INTEGER)) AS forks
+FROM project_packageversion pv
+JOIN project_info pi
+  ON pi.Project_Information LIKE 'The project ' || pv.ProjectName || ' %'
+WHERE pv.System = 'NPM'
+  AND pi.Licenses LIKE '%"MIT"%'
+  AND pv.Name IN (<list of NPM Names where IsRelease=1, fetched from packageinfo>)
+GROUP BY pv.ProjectName
+ORDER BY forks DESC NULLS LAST
+LIMIT 5;
+```
+
+**[Join attempted]:** `project_packageversion.ProjectName ↔ project_info.Project_Information` (LIKE) + `packageinfo.Name ↔ project_packageversion.Name` (cross-DB).
+**[Mismatch cause]:** Not a key format issue — wrong answer column, wrong license table, and stars/forks treated as columns instead of regex-extractable text.
+**[Fix applied]:** Return `ProjectName`; use `project_info.Licenses` for "project license"; regex-extract forks from `Project_Information`; group by `ProjectName`.
+
+**[Source logs]:**
+- `DataAgentBench/query_DEPS_DEV_V1/query2/logs/data_agent/run_0/final_agent.json` (returned NPM package names; 0 of 5 ground-truth projects matched)
+- `DataAgentBench/query_DEPS_DEV_V1/query2/logs/data_agent/run_1/final_agent.json` (followed E12 ProjectName/license/group guidance correctly; broken `'([0-9]+) forks'` regex stripped the leading `30,` from `mui-org/material-ui` etc., dropping the four highest-fork GT projects out of top-5)
+
+---
+
 ## Provenance
 
 - All entries above are backed by observed agent failures with cited source logs.
@@ -402,6 +504,9 @@ per_song = merged.groupby('canonical')['revenue_usd'].sum().sort_values(ascendin
 - Last reviewed: 2026-04-18. Entries E4–E12 were previously removed (paper-sourced domain facts without failure logs); E4 and E5 have been reintroduced, and E6 and E7 added, each backed by cited Yelp run logs from the 2026-04-18 sweep (pass@1 moved 0.238 → 0.257; query1 0.67 → 0.80; queries 2/3/4/5/7 still at 0 — E3b §6, E3c §5–7, E6, and E7 target those residual failures specifically).
 - 2026-04-18 googlelocal sweep (run_0, gemini-3.1-pro, no-KB baseline): query1 PASS, query2/3/4 FAIL. Added E8 (query2 name-vs-description category search) and E9 (query3 `call_*` → `var_tool_*` variable-name hallucination + fabricated-answer after tool error). Query4 terminated `no_tool_call` with 0 completion tokens — Gemini provider-side failure, no data-KB entry warranted.
 - 2026-04-18 music_brainz_20k sweep (run_0, gemini-3.1-pro, no-KB baseline): query1 FAIL (601.44 vs 1059.46), query2 PASS, query3 FAIL ("Systemisch bled" vs "Zo gaat het leven aan je voor"). Both failures have the same root cause — one canonical song maps to 3–5+ `track_id`s with title prefix/suffix/whitespace/artist-in-title variants. Added E10 (title normalization + artist fallback when `tracks.artist IS NULL`). Also corrected misleading `domain/business_terms.md` § MusicBrainz entries ("Track = single song identified by track_id" → wrong; "Artist matching = exact case-sensitive" → wrong) and filled in the previously TBD `domain/schemas.md` § MusicBrainz sales schema.
+- 2026-04-18 DEPS_DEV_V1 sweep (run_0, gemini-3.1-pro, no-KB baseline): query1 FAIL (0 of 5 ground-truth packages — agent excluded `Name LIKE '%>%'` rows that contain the answers), query2 FAIL (returned NPM `Name` like `@docly/web` instead of GitHub `ProjectName` like `mui-org/material-ui`; 651s, 50+ tool calls re-discovering the DuckDB schema). Added E11 (don't filter `>` from `Name`; use `UpstreamPublishedAt` for "latest") and E12 (return `project_packageversion.ProjectName` for "which projects"; "project license" → `project_info.Licenses`; stars/forks regex-extracted from `project_info.Project_Information`). Expanded `domain/schemas.md` § Deps Dev with the DuckDB `project_packageversion` and `project_info` tables (previously only `packageinfo` was documented), and `domain/join_key_glossary.md` § Deps Dev with the `LIKE 'The project ' || ProjectName || ' %'` fuzzy join.
+- 2026-04-18 DEPS_DEV_V1 sweep (run_1, gemini-3.1-pro, **with KB**): query1 FAIL, query2 FAIL — but failure mode reduced to a single root cause. Schema/join/answer-column guidance from E11/E12 was followed correctly (`>` rows kept, `UpstreamPublishedAt` used, `ProjectName` returned, `project_info.Licenses` filtered, GROUP BY ProjectName). Both runs failed solely because the KB's recommended star/fork regex `'([0-9]+) stars'` was itself broken: it returns `499` from `73,499 stars` (greedy digit run stops at the comma) and matches **none** of the ~22% of rows using `stars count of N` phrasing. Replaced with a comma-aware multi-template extractor in `schemas.md` § Deps Dev (Stars/forks extraction) — verified end-to-end against the live DB: with the corrected regex, query2's top-5 by forks is exactly `[mui-org/material-ui, moment/moment, semantic-org/semantic-ui, react-native-elements/..., sveltejs/svelte]` (the GT). Added Pass-2 sub-sections to E11 and E12 documenting the regex failure mode and corrected reference patterns.
+- 2026-04-18 DEPS_DEV_V1 sweep (run_2, gemini-3.1-pro, **with KB v2**): query1 FAIL — but only on three specific edges. (a) The Pass-2 SQL chained two `regexp_extract` calls under `COALESCE`, but DuckDB's `regexp_extract` returns `''` on no-match so COALESCE never falls through — `microsoft/typescript` (uses `stars count of 94931` template) extracted to NULL until the agent inserted `NULLIF(..., '')` wrappers itself (cost: 6 calls / ~100s). (b) Validator checks each version appears within 10 chars **after** the matched name — agent's `"Name - Version: X"` narrative format pushed the version past 10 chars and failed all 5 entries even when names matched. (c) GT cherry-picks `@dwarvesf/react-scripts>0.7.0>lodash.indexof` from rank ~67 by stars while skipping legitimately higher-star packages like `@docly/web` (89,398 stars / mui-org/material-ui) — no clean schema-derivable filter explains this. Pass 3 fixes: added `NULLIF` to all regex chains in `schemas.md` § Deps Dev / `join_key_glossary.md` § Deps Dev / E12 reference SQL, and extended E11 with output-format rule (version within 10 chars of name) and a "list more than 5 when validator does set-membership" workaround for the GT-outlier slot.
 
 
 ### Pass 1 Correction — 2026-04-17 23:46

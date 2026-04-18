@@ -116,13 +116,26 @@ Apply the **same** function to both sides before joining.
 ---
 
 ### Deps Dev (query_DEPS_DEV_V1)
-**Databases:** SQLite (packages) + DuckDB (projects)
+**Databases:** SQLite `package_database` (`packageinfo`) + DuckDB `project_database` (`project_packageversion`, `project_info`)
 
-| Join Key | SQLite Field | DuckDB Field | Format Match | Normalization |
-|----------|-------------|--------------|--------------|---------------|
-| Package name + system | `packageinfo.Name` + `packageinfo.System` | Project reference in DuckDB | Verify at runtime — name may include scope (e.g., `@babel/core`) | Composite key: match on (System, Name) pair |
+| Join | Left | Right | Format | Normalization |
+|------|------|-------|--------|---------------|
+| Package → project mapping | `packageinfo.Name`, `packageinfo.System` (SQLite) | `project_packageversion.Name`, `project_packageversion.System` (DuckDB) | Exact string match — `Name` may be a scoped package (`@babel/core`) or transitive-dep notation (`@dmrvos/infrajs>0.0.6>typescript`). **Both forms are valid identifiers — never strip or exclude `>`.** | Composite key: `(System, Name)` |
+| Project metadata lookup | `project_packageversion.ProjectName` (DuckDB) e.g. `mui-org/material-ui` | `project_info.Project_Information` (DuckDB) — free text | **`project_info` has no `ProjectName` column.** Match by substring: the text starts with `"The project <ProjectName> "` (followed by ` is hosted on GitHub` or ` on GitHub`). Use `LIKE 'The project ' \|\| pv.ProjectName \|\| ' %'` (note the trailing space — guards against `leaflet/leaflet` matching `leaflet/leaflet-draw`). | DuckDB SQL: `JOIN project_info pi ON pi.Project_Information LIKE 'The project ' \|\| pv.ProjectName \|\| ' %'` |
 
-**Cross-DB join required:** Yes. Query SQLite for package info, DuckDB for project stats, join on package identifier.
+**Cross-DB join required:** Yes — the SQLite ↔ DuckDB hop. The DuckDB-internal `project_packageversion ↔ project_info` join can be done in a single DuckDB query via `LIKE`.
+
+**Stars / forks extraction:** Both live inside `project_info.Project_Information` text (no numeric columns). **Three pitfalls stack:** (1) `'([0-9]+) stars'` returns `499` from `73,499 stars` (greedy stops at comma); (2) ~22% of rows use the alternate `stars count of N` phrasing and match nothing; (3) **DuckDB's `regexp_extract` returns `''` on no-match, not NULL**, so naive `COALESCE` over multiple patterns picks the empty string from the first and never evaluates the others — wrap each in `NULLIF(..., '')`. Full SQL with `forked N times` template in `schemas.md` § Deps Dev. Skeleton:
+```sql
+TRY_CAST(REPLACE(COALESCE(
+  NULLIF(regexp_extract(pi.Project_Information, '([0-9][0-9,]*)\s+stars', 1), ''),
+  NULLIF(regexp_extract(pi.Project_Information, 'stars\s+count\s+of\s+([0-9][0-9,]*)', 1), '')
+), ',', '') AS INTEGER) AS stars
+```
+
+**Project-level license filter:** `project_info.Licenses LIKE '%"MIT"%'` (the field is a JSON array string). This is **not** the same as `packageinfo.Licenses`.
+
+**Common pitfall:** When a query asks "which **projects**", return `project_packageversion.ProjectName` (e.g. `mui-org/material-ui`), NOT `packageinfo.Name` (e.g. `@docly/web`). Multiple NPM package names map to the same GitHub project.
 
 ---
 

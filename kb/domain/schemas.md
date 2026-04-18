@@ -112,24 +112,73 @@ PostgreSQL: `crm_support` — Support tickets and knowledge articles. Schema TBD
 
 ## Deps Dev (query_DEPS_DEV_V1)
 
-SQLite: `package_query.db` — packageinfo table
+SQLite: `package_query.db` — `packageinfo` table (logical name: `package_database`)
 | Column | Type | Semantics | Notes |
 |--------|------|-----------|-------|
 | System | text | Package ecosystem (NPM, Cargo, Maven, etc.) | Filter field |
-| Name | text | Package name | May include scope: `@babel/core` |
-| Version | text | Semantic version string | NOT for "latest" — use UpstreamPublishedAt |
-| **UpstreamPublishedAt** | text/datetime | **Publication timestamp. Use this for "latest version" — sort by date, NOT the Version string.** | Sort by date, not by version string |
-| **Licenses** | text | **Licenses contains license identifiers as a JSON array (e.g., ["MIT", "Apache-2.0"]).** | Needs JSON parsing |
-| **Advisories** | text | **Advisories contains security advisory records as a JSON array.** | Needs JSON parsing |
+| Name | text | Package name | May be a normal name (`@babel/core`) **or** a transitive-dependency notation (`@dmrvos/infrajs>0.0.6>typescript` — meaning: at version 0.0.6 of `@dmrvos/infrajs`, the dependency `typescript`). **Do NOT exclude names containing `>`** — they are valid distinct package identifiers and appear in ground-truth answers. |
+| Version | text | Semantic version string | NOT for "latest" — use `UpstreamPublishedAt` |
+| **UpstreamPublishedAt** | text/datetime | **Publication timestamp. Use this for "latest version" — sort by date, NOT the Version string and NOT `VersionInfo.Ordinal`.** | Sort by date |
+| **VersionInfo** | text | JSON: `{"IsRelease": true/false, "Ordinal": N}`. **`IsRelease=1` filters out pre-release/dev versions.** `Ordinal` is a per-package monotonic counter — not a publish-time proxy across packages. | Use `json_extract(VersionInfo, '$.IsRelease') = 1` |
+| **Licenses** | text | License identifiers as a JSON array (e.g., `["MIT", "Apache-2.0"]`). **This is the *package*-level license. The query2 phrase "project license" refers to the *project*-level license in `project_info.Licenses` (DuckDB), NOT this column.** | JSON parsing |
+| **Advisories** | text | Security advisory records as a JSON array. | JSON parsing |
 | Links | text | URLs (homepage, repo) | JSON structure |
-| VersionInfo | text | Version metadata | JSON structure |
 | Hashes | text | Package checksums | |
 | Registries | text | Which registries host this package | |
 | Purl | text | Package URL (universal identifier) | |
 
-DuckDB: `project_query.db` — Project/repository data including GitHub stars.
+DuckDB: `project_query.db` (logical name: `project_database`) — TWO tables, no shared key column between them.
 
-**DB split: Package data is in the SQLite `packageinfo` table and project data is in DuckDB.** **Licenses contains license identifiers as a JSON array and Advisories contains security advisory records as a JSON array.** The JSON-encoded columns requiring parsing are **Licenses, Advisories, and Links**.
+`project_packageversion` — links each package version to a GitHub project
+| Column | Type | Semantics | Notes |
+|--------|------|-----------|-------|
+| System | text | Same as packageinfo.System | |
+| Name | text | Same as packageinfo.Name (join key to SQLite) | |
+| Version | text | Package version | |
+| ProjectType | text | Usually `GITHUB` | |
+| **ProjectName** | text | **GitHub repo path, e.g. `mui-org/material-ui`, `sveltejs/svelte`, `microsoft/TypeScript`. This is the answer column when a query asks "which projects".** | Multiple Names can map to the same ProjectName |
+| RelationProvenance | text | e.g. `UNVERIFIED_METADATA` | |
+| RelationType | text | e.g. `SOURCE_REPO_TYPE` | |
+
+`project_info` — free-text per-project metadata. **Has no `ProjectName` column.**
+| Column | Type | Semantics | Notes |
+|--------|------|-----------|-------|
+| **Project_Information** | text | Free-text sentence. **Multiple narrative templates exist** — any single regex covers only ~75%. Numbers may include comma thousands separators (`73,499 stars`). **Stars and forks are extracted by regex from this text** — they are NOT separate columns. See "Stars/forks extraction" below for the full pattern. | See below |
+| Licenses | text | **Project-level** license JSON array (e.g. `["MIT"]`, `["non-standard"]`). Filter "project license MIT" with `Licenses LIKE '%"MIT"%'`. | Distinct from `packageinfo.Licenses` |
+| Description | text | Project description | |
+| Homepage | text | Project homepage URL | |
+| OSSFuzz | text | Often `"nan"` | |
+
+**DB split summary:** Package data → SQLite `packageinfo`. Project ↔ package mapping → DuckDB `project_packageversion`. Project metadata (stars/forks/license) → DuckDB `project_info`. JSON-encoded columns requiring parsing: **`packageinfo.Licenses`, `packageinfo.Advisories`, `packageinfo.Links`, `packageinfo.VersionInfo`, `project_info.Licenses`**. Stars/forks live inside the **free-text** `project_info.Project_Information` and need regex extraction.
+
+**Stars/forks extraction (CRITICAL — both the regex AND the COALESCE composition are landmines):**
+The `Project_Information` text uses 3 narrative templates and numbers can be comma-formatted. Two pitfalls stack:
+1. `'([0-9]+) stars'` returns `499` from `73,499 stars` (greedy digit run stops at the comma) and matches **none** of the `stars count of N` rows (~22% of corpus).
+2. **DuckDB's `regexp_extract` returns empty string `''` on no-match, NOT NULL.** This breaks naive `COALESCE(regexp_extract(...), regexp_extract(...))` — COALESCE picks the `''` from the first regex and never evaluates the second. Wrap each `regexp_extract` in `NULLIF(..., '')` so COALESCE actually falls through.
+
+```sql
+-- Stars (covers 96% of rows; NULLIF is mandatory — COALESCE doesn't skip empty strings)
+TRY_CAST(REPLACE(
+  COALESCE(
+    NULLIF(regexp_extract(Project_Information, '([0-9][0-9,]*)\s+stars', 1), ''),
+    NULLIF(regexp_extract(Project_Information, 'stars\s+count\s+of\s+([0-9][0-9,]*)', 1), '')
+  ), ',', '') AS INTEGER) AS stars
+
+-- Forks (same shape; the 3rd template "forked N times" adds another ~9%)
+TRY_CAST(REPLACE(
+  COALESCE(
+    NULLIF(regexp_extract(Project_Information, '([0-9][0-9,]*)\s+forks', 1), ''),
+    NULLIF(regexp_extract(Project_Information, 'forks\s+count\s+of\s+([0-9][0-9,]*)', 1), ''),
+    NULLIF(regexp_extract(Project_Information, 'forked\s+([0-9][0-9,]*)\s+times', 1), '')
+  ), ',', '') AS INTEGER) AS forks
+```
+
+Observed templates (run_1 sweep, 2026-04-18):
+- `"... currently has X open issues, Y stars, and Z forks ..."` (~67% of rows)
+- `"... has an open issues count of A, a stars count of B, and a forks count of C ..."` (~22%)
+- `"... boasting an impressive Y stars and Z forks ..."` and `"... has been forked C times"` (~9%)
+
+**Verification before reporting:** print the top-N candidates with their raw `Project_Information` snippet — (a) any extracted star count ≤ 3 digits next to a comma in the source means the digit-run regex caught the wrong group, (b) any expected high-star project (e.g. `microsoft/typescript` ≈ 95k) showing as NULL means the `NULLIF` wrapper was forgotten and COALESCE stuck on the empty string.
 
 ## GitHub Repos (query_GITHUB_REPOS)
 
