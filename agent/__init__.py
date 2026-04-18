@@ -1,1 +1,1 @@
-"""Oracle Forge agent package (context loading, MCP wiring)."""
+# Oracle Forge agent package (KB context loader, MCP helpers).
