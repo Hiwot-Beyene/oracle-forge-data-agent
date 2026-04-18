@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Oracle Forge Coverage</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <h1>Oracle Forge Coverage</h1>
+        <p>Benchmark run completeness across dataset × query × run</p>
+        <p class="meta">
+          OpenRouter key: {% if openrouter_configured %}loaded{% else %}missing — set OPENROUTER_API_KEY in <code>oracle-forge-data-agent/.env</code> or DataAgentBench/.env{% endif %}
+        </p>
+        <nav class="top-nav">
+          <a href="/" class="{% if current_page == 'benchmark' %}active{% endif %}">Benchmark</a>
+          <a href="/coverage" class="{% if current_page == 'coverage' %}active{% endif %}">Coverage</a>
+          <a href="/dab-stats" class="{% if current_page == 'dab_stats' %}active{% endif %}">DAB stats</a>
+        </nav>
+      </header>
+
+      <section class="panel">
+        <form method="post" class="form">
+          <div class="row-inline single-col">
+            <div class="row">
+              <label for="target_trials">Target Trials</label>
+              <input id="target_trials" name="target_trials" type="number" min="1" value="{{ target_trials }}" />
+            </div>
+          </div>
+          <div class="actions">
+            <button type="submit">Refresh Coverage</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Coverage</h2>
+        <div class="trace-grid">
+          <div><strong>Target trials/query:</strong> {{ coverage.target_trials }}</div>
+          <div><strong>Expected rows:</strong> {{ coverage.total_expected_rows }}</div>
+          <div><strong>Present rows:</strong> {{ coverage.total_present_rows }}</div>
+          <div><strong>Missing query slots:</strong> {{ coverage.missing_count }}</div>
+        </div>
+        {% if coverage.missing_count > 0 %}
+        <pre>{{ coverage.missing | tojson(indent=2) }}</pre>
+        {% else %}
+        <pre>Coverage complete for current target trial count.</pre>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

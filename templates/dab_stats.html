@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Oracle Forge — DAB run statistics</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <h1>DataAgentBench run statistics</h1>
+        <p>Same calculation as <code>stats_scripts/avg_pass_k.py</code> — traces under each query’s <code>logs/data_agent</code> (matches Oracle Forge benchmark runs).</p>
+        <p class="meta">
+          OpenRouter key: {% if openrouter_configured %}loaded{% else %}missing — set OPENROUTER_API_KEY in <code>oracle-forge-data-agent/.env</code> or DataAgentBench/.env{% endif %}
+        </p>
+        <nav class="top-nav">
+          <a href="/" class="{% if current_page == 'benchmark' %}active{% endif %}">Benchmark</a>
+          <a href="/coverage" class="{% if current_page == 'coverage' %}active{% endif %}">Coverage</a>
+          <a href="/dab-stats" class="{% if current_page == 'dab_stats' %}active{% endif %}">DAB stats</a>
+        </nav>
+      </header>
+
+      <section class="panel">
+        <form method="post" class="form">
+          <p class="hint">
+            <strong>avg pass@1</strong> is the usual “any run valid” signal averaged over queries. Larger <strong>k</strong> (e.g. pass@50) is only meaningful when you have enough runs per query — see the <strong>runs (min–max)</strong> column. Pass@<strong>k</strong> is the benchmark’s sample size in the pass@k formula, not agent max_iterations.
+          </p>
+          <div class="actions">
+            <button type="submit">Compute statistics</button>
+          </div>
+        </form>
+      </section>
+
+      {% if stats_error %}
+      <section class="panel">
+        <h2>Error</h2>
+        <pre class="error">{{ stats_error }}</pre>
+      </section>
+      {% endif %}
+
+      {% if stats_payload %}
+      <section class="panel">
+        <h2>Results</h2>
+        <div class="trace-grid">
+          <div><strong>DAB root:</strong> <code>{{ stats_payload.dab_root }}</code></div>
+        </div>
+        <div class="stats-table-wrap">
+          <table class="stats-table">
+            <thead>
+              <tr>
+                <th>Dataset</th>
+                <th>Runs (min–max)</th>
+                {% for k in stats_payload.k_list %}
+                <th>avg pass@{{ k }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in stats_payload.rows %}
+              <tr>
+                <td><code>{{ row.dataset }}</code></td>
+                <td class="muted">
+                  {% if row.run_count_min is not none and row.run_count_max is not none %}
+                  {{ row.run_count_min }}–{{ row.run_count_max }}
+                  {% else %}
+                  —
+                  {% endif %}
+                </td>
+                {% for k in stats_payload.k_list %}
+                <td>
+                  {% if row.avg_pass_k and k in row.avg_pass_k %}
+                  {{ "%.4f"|format(row.avg_pass_k[k]|float) }}
+                  {% else %}
+                  —
+                  {% endif %}
+                </td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% elif stats_attempted and not stats_error %}
+      <section class="panel">
+        <p class="muted">No payload returned.</p>
+      </section>
+      {% endif %}
+    </main>
+  </body>
+</html>

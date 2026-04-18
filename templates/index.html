@@ -3,94 +3,158 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    {% if job_poll %}
+    <meta http-equiv="refresh" content="3" />
+    {% endif %}
     <title>Oracle Forge Query Console</title>
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
     <main class="shell">
       <header class="header">
-        <h1>Oracle Forge Query Console</h1>
-        <p>Black-label interface for 4 heterogeneous databases</p>
+        <h1>Oracle Forge Benchmark Console</h1>
+        <p>Benchmark-only mode for DataAgentBench runs</p>
         <p class="meta">
-          OpenRouter key: {% if openrouter_configured %}loaded (planner enabled){% else %}missing — set OPENROUTER_API_KEY in <code>oracle-forge-data-agent/.env</code> or DataAgentBench/.env{% endif %}
+          OpenRouter key: {% if openrouter_configured %}loaded{% else %}missing — set OPENROUTER_API_KEY in <code>oracle-forge-data-agent/.env</code> or DataAgentBench/.env{% endif %}
         </p>
+        <nav class="top-nav">
+          <a href="/" class="{% if current_page == 'benchmark' %}active{% endif %}">Benchmark</a>
+          <a href="/coverage" class="{% if current_page == 'coverage' %}active{% endif %}">Coverage</a>
+          <a href="/dab-stats" class="{% if current_page == 'dab_stats' %}active{% endif %}">DAB stats</a>
+        </nav>
       </header>
 
-      <section class="panel">
-        <form method="post" class="form">
-          <div class="row">
-            <label for="input">Question</label>
-            <textarea id="input" name="input" rows="6" placeholder="Ask in natural language. You can still paste SQL if needed.">{{ user_input }}</textarea>
-          </div>
+      <div class="layout-grid">
+        <section class="stack-left">
+          <section class="panel">
+            <form method="post" class="form">
+              <div class="row">
+                <label for="dataset">Dataset</label>
+                <select id="dataset" name="dataset" onchange="this.form.submit()">
+                  <option value="" {% if not selected_dataset %}selected{% endif %}>Select dataset</option>
+                  {% for ds in catalog %}
+                  <option value="{{ ds.dataset_slug }}" {% if ds.dataset_slug == selected_dataset %}selected{% endif %}>
+                    {{ ds.dataset_slug }} ({{ ds.query_count }} queries)
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
 
-          <button type="submit">Run</button>
-        </form>
-      </section>
+              <div class="row">
+                <label for="query_number">Question</label>
+                <select id="query_number" name="query_number" onchange="this.form.submit()">
+                  <option value="" {% if not selected_query %}selected{% endif %}>Select query</option>
+                  {% for ds in catalog if ds.dataset_slug == selected_dataset %}
+                    {% for q in ds.queries %}
+                    <option value="{{ q.query_number }}" {% if q.query_number == selected_query %}selected{% endif %}>
+                      Q{{ q.query_number }}: {{ q.question[:100] }}{% if q.question|length > 100 %}...{% endif %}
+                    </option>
+                    {% endfor %}
+                  {% endfor %}
+                </select>
+              </div>
 
-      <section class="panel">
-        <h2>Execution Trace</h2>
-        {% if execution_trace %}
-        <div class="trace-grid">
-          <div><strong>Executor:</strong> {{ execution_trace.executor }}</div>
-          <div><strong>Tool:</strong> {{ execution_trace.tool }}</div>
-          <div><strong>Database:</strong> {{ execution_trace.database }}</div>
-          {% if execution_trace.dataset_db %}
-          <div><strong>Dataset DB:</strong> {{ execution_trace.dataset_db }}</div>
+              <div class="row">
+                <label for="question_preview">Selected Question Text</label>
+                <textarea id="question_preview" rows="5" readonly>{{ selected_question }}</textarea>
+              </div>
+
+              <div class="row-inline">
+                <div class="row">
+                  <label for="iterations">Iterations</label>
+                  <input id="iterations" name="iterations" type="number" min="1" value="{{ iterations }}" />
+                </div>
+                <div class="row">
+                  <label for="target_trials">Target Trials</label>
+                  <input id="target_trials" name="target_trials" type="number" min="1" value="{{ target_trials }}" />
+                </div>
+              </div>
+
+              <div class="actions">
+                <button type="submit" name="action" value="run_one">Run One Trial</button>
+                <button type="submit" name="action" value="run_one_best_k" title="Up to {{ benchmark_run_one_k }} runs; stops early if a trial validates.">
+                  Best of {{ benchmark_run_one_k }} (retries)
+                </button>
+                <button type="submit" name="action" value="run_until">Run Until N</button>
+                <button type="submit" name="action" value="export">Export Submission JSON</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="panel">
+            <h2>Result</h2>
+            {% if job_poll %}
+            <p class="meta">
+              Benchmark run in progress… this page auto-refreshes every 3 seconds. Logs still appear in the server
+              terminal.
+            </p>
+            {% endif %}
+            {% if result and benchmark_job_id and not job_poll %}
+            <p class="muted">
+              <a href="{{ url_for('index', dataset=selected_dataset, query_number=selected_query, iterations=iterations, target_trials=target_trials) }}">Dismiss run status</a>
+              (clears the polling URL)
+            </p>
+            {% endif %}
+            {% if result and result.ops %}
+            <div class="trace-grid">
+              <div><strong>Run:</strong> {{ result.ops.run_name or ("run_" ~ result.ops.run) }} <span class="muted">(index {{ result.ops.run }})</span></div>
+              {% if result.ops.trace_dir %}
+              <div><strong>Trace dir:</strong> <code>{{ result.ops.trace_dir }}</code></div>
+              {% endif %}
+              <div><strong>Validity:</strong> {{ "valid" if result.ops.is_valid else "invalid" }}</div>
+              <div><strong>Answer status:</strong> {{ result.ops.answer_status or "n/a" }}</div>
+              <div><strong>Termination:</strong> {{ result.ops.terminate_reason or "n/a" }}</div>
+              <div>
+                <strong>KB context:</strong>
+                {% if result.ops.kb_context and result.ops.kb_context.kb_context_loaded %}
+                loaded ({{ result.ops.kb_context.dataset }})
+                {% else %}
+                missing
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+            {% if error %}
+            <pre class="error">{{ error }}</pre>
+            {% elif result %}
+              {% if result.row %}
+              <pre>{{ result.row | tojson(indent=2) }}</pre>
+              {% else %}
+              <pre>{{ result | tojson(indent=2) }}</pre>
+              {% endif %}
+            {% elif job_poll %}
+            <pre class="muted">Waiting for the first tool results…</pre>
+            {% else %}
+            <pre>Run a benchmark question to see output.</pre>
+            {% endif %}
+          </section>
+        </section>
+
+        <aside class="panel pipeline-panel">
+          <h2>Pipeline Status</h2>
+          <ul class="pipeline-list">
+            {% for stage, state in pipeline_stages.items() %}
+            <li class="state-{{ state }}">
+              <span class="stage-name">{{ stage }}</span>
+              <span class="stage-state">{{ state }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% if batch_progress %}
+          <pre>{{ batch_progress | tojson(indent=2) }}</pre>
+          {% else %}
+          <pre>No batch progress yet.</pre>
           {% endif %}
-          <div><strong>Reason:</strong> {{ execution_trace.reason }}</div>
+        </aside>
+      </div>
+      <section class="panel">
+        <h2>Notes</h2>
+        <div class="trace-grid">
+          <div><strong>Run naming:</strong> <code>run_0</code>, <code>run_1</code>, … increments for <em>each</em> <code>query_*/queryN</code> folder (so query&nbsp;1 and query&nbsp;2 each start at <code>run_0</code>; re-running the <em>same</em> query advances <code>n</code>).</div>
+          <div><strong>Logs path:</strong> <code>DataAgentBench/query_&lt;dataset&gt;/queryN/logs/data_agent/run_n</code></div>
+          <div><strong>Submission rows:</strong> <code>results/benchmark_submission_rows.jsonl</code></div>
+          <div><strong>Export JSON:</strong> <code>results/dab_submission_*.json</code></div>
         </div>
-        <pre>{{ execution_trace.resolved_query }}</pre>
-        {% else %}
-        <pre>No route selected yet. Submit a question to see selected tool and database.</pre>
-        {% endif %}
-      </section>
-
-      <section class="panel">
-        <h2>Result</h2>
-        {% if error %}
-        <pre class="error">{{ error }}</pre>
-        {% elif response %}
-        <pre>{{ response | tojson(indent=2) }}</pre>
-        {% else %}
-        <pre>Run a query to see output.</pre>
-        {% endif %}
-      </section>
-
-      <section class="panel">
-        <h2>Capabilities</h2>
-        <h3>GenAI Toolbox (<code>tools.yaml</code>)</h3>
-        <p class="hint">These are the only tools the <code>toolbox invoke</code> binary exposes; bookreview + yelp Mongo are what is wired today.</p>
-        {% if toolbox_tools_detail and toolbox_tools_detail|length > 0 %}
-        <ul class="tool-list">
-          {% for t in toolbox_tools_detail %}
-          <li>
-            <code>{{ t.name }}</code>
-            <span class="muted">— {{ t.kind }} · source {{ t.source }}</span>
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <pre>No tools found in tools.yaml</pre>
-        {% endif %}
-
-        <h3>App executors (not in YAML)</h3>
-        <ul class="tool-list">
-          {% for e in app_capabilities.executors %}
-          <li><code>{{ e.name }}</code> — {{ e.description }}</li>
-          {% endfor %}
-        </ul>
-        <p class="hint">{{ app_capabilities.note }}</p>
-
-        <h3>Discovered file databases (all DAB SQLite / DuckDB)</h3>
-        {% if discovered_datasets and discovered_datasets|length > 0 %}
-        <ul class="tool-list">
-          {% for label, path in discovered_datasets %}
-          <li><strong>{{ label }}</strong><br /><code class="muted">{{ path }}</code></li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <pre>No query_*/db_config.yaml SQLite or DuckDB entries found under DataAgentBench.</pre>
-        {% endif %}
       </section>
     </main>
   </body>
