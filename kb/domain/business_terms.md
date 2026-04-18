@@ -95,11 +95,12 @@ If a term is NOT listed, state your assumed definition in the answer and log it 
 
 | Term               | Correct Definition                                                                                    | Notes                                            |
 | ------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Revenue            | Sales revenue in USD from DuckDB `sales_database`. Attributed to tracks by join on track identifiers. | Revenue is in DuckDB, track metadata in SQLite   |
-| Platform           | Music streaming/sales platform (e.g., Apple Music, Spotify). Stored in DuckDB sales data.             | Filter by exact platform name                    |
-| Track              | A single song/recording. Identified by `track_id` in SQLite `tracks` table.                           | Has title, artist, album, year, length, language |
-| Artist matching    | Match by exact artist name string in `tracks.artist`.                                                 | Case-sensitive unless query specifies otherwise  |
-| Geographic revenue | Revenue filtered by country/region in DuckDB sales data (e.g., "in Canada").                          | Country is in sales data, not track metadata     |
+| Revenue            | Sales revenue in USD from DuckDB `sales.revenue_usd`. Attributed to tracks via `sales.track_id` → `tracks.track_id`. | Revenue is in DuckDB, track metadata in SQLite   |
+| Store / Platform   | Music streaming/sales store. Distinct values: `Apple Music`, `iTunes`, `Spotify`, `Amazon Music`, `Google Play`. Stored in DuckDB `sales.store`. | Filter by exact store name. Note: `Apple Music` and `iTunes` are distinct stores — do not conflate. |
+| Song vs track      | **A single canonical song is typically split across MULTIPLE `track_id` rows** — e.g., `Get Me Bodied` has 5 track_ids, `Zo gaat het leven aan je voor` has 5. | To aggregate *by song*, you must group on a normalized title, not on `track_id`. See corrections/log.md § E10. |
+| Title variations   | Observed variants for the same song: `Title`, `NNN-Title` (e.g., `022-Get Me Bodied`), `Artist - Title` (with `artist` column NULL), `Title (extra info)`, `Title - extra info`, whitespace typos (`GetMe Bodied`). | A `LIKE '%title%'` match against a user-supplied title will under-count revenue. Normalize and match across variants. |
+| Artist matching    | Artist appears in `tracks.artist` **or** inside `tracks.title` when `tracks.artist IS NULL`. Case-insensitive match recommended (`LOWER()` or `ILIKE`). | Do not rely on `artist` alone — always also match `title LIKE '%Artist%'` when the artist column is NULL. |
+| Geographic revenue | Revenue filtered by `sales.country` (e.g., `Canada`, `USA`, `France`, `Germany`, `UK`). | Country is in sales data, not track metadata     |
 
 ## PANCANCER Atlas (query_PANCANCER_ATLAS)
 

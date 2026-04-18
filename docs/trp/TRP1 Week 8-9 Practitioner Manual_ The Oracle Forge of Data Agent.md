@@ -160,7 +160,7 @@ Technical credibility requires attendance at mob sessions and genuine understand
 | :---- | :---- |
 | Day 1 — Resource audit | Apply for Cloudflare Workers free tier. Identify 5 X accounts posting about data agents, Claude Code, or BIRD/DAB benchmarks. Subscribe to DAB repository. Note which subreddits and Discord servers are active. |
 | Day 2 — First X thread | Comment on a notable post about Claude Code architecture or data agents. Contribute a specific technical observation from the team's study of the KB. Name the specific thing you learned, not a generic opinion. |
-| Day 3 — Internal Slack daily \+ community entry | Daily Slack post in team channel. One substantive comment on Reddit (r/MachineLearning or r/LocalLLaMA) or Discord (Hugging Face, DAB community if accessible). Save link in community log. |
+| Day 3 — Internal Slack daily \+ community entry | Daily Slack post in team channel. One substantive comment on Reddit (r/MachineLearning or r/LocalLLaMA) or Discord (Hugging Face). Save link in community log. |
 | Day 4 — Second X thread | Post about what your team is building: the DAB benchmark, the multi-database architecture decision, something unexpected you hit in Day 3\. In-progress engineering posts consistently outperform finished-product announcements in technical communities. |
 | Day 5 — Weekly engagement summary | Compile all post links, notable responses, resources obtained. Present at mob session. Report any community intelligence that changes the team's technical direction. |
 

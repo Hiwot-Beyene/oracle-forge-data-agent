@@ -134,7 +134,7 @@ The work of Signal Corps requires technical depth. You cannot write a credible t
 | Internal Slack daily post | One post per day: what shipped, what is stuck, what is next. Four bullet points maximum. The facilitator's primary visibility into team progress. |
 | X threads (minimum 2 per week) | Technical threads engaging with notable posts about data agents, Claude Code architecture, or DAB benchmark work. Substantive: add something, ask something, answer something. Not announcements. |
 | LinkedIn article or Medium post | One substantive technical post per Signal Corps member across the two weeks. Minimum 600 words. Topic: one specific thing learned, one failure understood, one engineering decision made. Not a project summary. |
-| Community participation log | Links to Reddit (r/MachineLearning, r/LocalLLaMA), Discord (Hugging Face, DAB community), X threads where the team engaged with a substantive comment. Updated daily. |
+| Community participation log | Links to Reddit (r/MachineLearning, r/LocalLLaMA), Discord (Hugging Face), X threads where the team engaged with a substantive comment. Updated daily. |
 | Resource acquisition report | Applications made for free-tier resources (Cloudflare Workers, API credits, compute access), outcomes, and instructions for the team to use what was obtained. |
 | External engagement summary | Compiled at end of Week 9: all post links, reach metrics where available, notable responses received, any community intelligence that changed the team's technical approach. |
 
@@ -245,7 +245,7 @@ This deadline is the final submission — everything from Wednesday plus adversa
 
 12. **signal/ directory updated** — Article text files (or links) for each Signal Corps member's published LinkedIn/Medium post (minimum 600 words each), complete engagement portfolio with all post links, reach metrics, notable responses, and community intelligence that changed the team's technical approach. Week 9 content: benchmark X thread, published articles, final community thread, DAB PR announcement.
 
-13. **Benchmark submission** — GitHub PR opened to ucbepic/DataAgentBench with results JSON and AGENT.md. PR title: "\[Team Name\] — TRP1 FDE Programme, April 2026". Includes pass@1 score, trial count, and brief architecture description.
+13. **Benchmark submission** — GitHub PR opened to ucbepic/DataAgentBench with results JSON. PR title: "\[Team Name\] — TRP1 FDE Programme, April 2026". Includes pass@1 score, trial count, and brief architecture description.
 
 **PDF report (final version) must cover:**
 
