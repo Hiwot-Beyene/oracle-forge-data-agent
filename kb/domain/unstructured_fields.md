@@ -141,6 +141,39 @@ They require parsing before use but are not free-text. All semi-structured JSON 
 | Parsing approach | For MISC: use PostgreSQL `MISC::json->>'key'` (json arrow notation) to access nested key-value pairs. In Python: `json.loads(misc)`. |
 | Use cases        | Service availability queries, accessibility checks, amenity filtering                                                                |
 
+### Yelp — Mongo `business.attributes` (nested / stringified)
+
+| Property            | Value                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Database            | MongoDB `business` collection (logical name `businessinfo_database`)                                                                   |
+| Field               | `attributes`                                                                                                                          |
+| Content type        | Semi-structured: many keys are strings (`"True"`/`"False"`); `BusinessParking` is often a **string** containing a Python dict literal; occasionally **boolean** `True`/`False` or the string `"None"` |
+| Format              | Example: `BikeParking`: `"True"`; `BusinessParking`: `"{'garage': False, 'street': True, 'lot': False, 'validated': False, 'valet': False}"` — some rows use legacy `u'` prefixes inside the string; rare docs use **bool** `True` for `BusinessParking` (meaning “offered” without a breakdown dict) |
+| Parsing approach    | Require `isinstance(attributes, dict)` before `.get`. For `BusinessParking`: handle **bool** first (`True` ⇒ offered); else **dict** (any slot `True`); else **string** via `ast.literal_eval` after `u'`→`'` only — avoid global substring replacements that break parsing. Join to DuckDB `review` on normalized `businessid_*` / `businessref_*` **after** filtering reviews by date if the question asks for a calendar year. |
+| Use cases           | Parking/bike filters, year-scoped “businesses that received reviews” + amenity questions                                            |
+| Difficulty          | MEDIUM — easy to confuse with DuckDB columns or to swap Mongo vs review query results in `execute_python`                              |
+
+### Yelp — Mongo `business.categories` (string array)
+
+| Property         | Value                                                                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Database         | MongoDB `business` collection                                                                                                        |
+| Field            | `categories`                                                                                                                         |
+| Content type     | Array of human-readable labels (Yelp taxonomy: sector, cuisine, attributes, …)                                                      |
+| Format           | e.g. `["Restaurants", "Italian", ...]` — **not** the same as `name`                                                                  |
+| Parsing approach | In `execute_python`, normalize to a **single grouping key** per business (task-dependent: often first element = broad sector).      |
+| Use cases        | “Which business category has the most …”, reporting **all** labels for a business in **return_answer** (substring checks).            |
+
+### Yelp — DuckDB `user` (registration cohort)
+
+| Property         | Value                                                                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Database         | DuckDB `user_database` — table **`user`**                                                                                            |
+| Field            | **`user_id`** (join to **`review.user_id`**), **`yelping_since`** (registration timestamp / date string)                             |
+| Content type     | `yelping_since` is a string (e.g. year-month-day); use it for “registered on Yelp in year …”, not Mongo fields                     |
+| Parsing approach | Filter cohort: e.g. `yelping_since` contains the calendar year, or parse the leading date and compare year                           |
+| Use cases        | User-cohort questions: restrict **`review`** rows to **`user_id`** in cohort, then join **`business`** for **`categories`** aggregates |
+
 ### Deps Dev — `packageinfo.Licenses` (SQLite)
 
 | Property         | Value                                                                   |

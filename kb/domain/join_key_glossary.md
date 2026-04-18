@@ -87,6 +87,8 @@ Apply the **same** function to both sides before joining.
 
 **Cross-DB join required:** Yes. Query MongoDB for article data, query SQLite for metadata, join on `article_id` in pandas.
 
+**Category:** Not stored in either engine. Infer **World / Sports / Business / Science/Technology** from **`articles.title` + `articles.description`** (see `business_terms.md` and `db_description_withhint.txt`).
+
 ---
 
 ### Book Reviews (query_bookreview)
@@ -99,6 +101,10 @@ Apply the **same** function to both sides before joining.
 **Cross-DB join required:** Yes. Query PostgreSQL for book metadata (category, language, publication_date), query SQLite for reviews (rating, text, helpful_vote), join on `books_info.book_id` = `review.purchase_id`.
 
 **NOTE:** The SQLite column is named `purchase_id` (not `book_id`) because it represents the purchased book. It IS the foreign key to PostgreSQL `books_info.book_id` — do not be misled by the column name.
+
+**IDs:** Values look like `bookid_<n>` in PostgreSQL and `purchaseid_<n>` in SQLite for the same book; join by matching the numeric suffix (e.g. `regexp_replace(book_id,'bookid_','')` = `regexp_replace(purchase_id,'purchaseid_','')` across a cross-DB merge).
+
+**Publication year:** `details` usually contains `Published by … on Month D, YYYY` or `released on Month D, YYYY`, not a `Published:` label — extract the 4-digit year from that phrase; `LIKE '%Published:%'` often matches zero rows.
 
 ---
 
@@ -187,13 +193,15 @@ Apply the **same** function to both sides before joining.
 ---
 
 ### Stock Index (query_stockindex)
-**Databases:** SQLite (index info) + DuckDB (trade data)
+**Databases:** SQLite (`indexinfo_database` — `index_info`) + DuckDB (`indextrade_database` — `index_trade`)
 
 | Join Key | SQLite Field | DuckDB Field | Format Match | Normalization |
 |----------|-------------|--------------|--------------|---------------|
-| Index identifier | `index_info` primary key / name | Trade data index reference | Verify at runtime — may be index symbol or name | Normalize to consistent identifier |
+| Index symbol | Exchange / catalog row (hint maps exchange ↔ symbol) | `index_trade.Index` | **Authoritative trade key** is **`Index`** (query actual values in DuckDB) | Map exchange names from `index_info` to the symbols present in `index_trade` using bundle hints or sampled joins — not always a single shared column name |
 
-**Cross-DB join required:** Yes. Query SQLite for index metadata (exchange, currency, region), DuckDB for trade data, join on index identifier.
+**Cross-DB join required:** Yes. OHLC lives in DuckDB `index_trade`; region/exchange metadata in SQLite. **Always surface `index_trade.Index` in final answers** where graders substring-match symbols.
+
+**Up / down days:** Per DAB `db_description_withhint`, up = **`Close > Open`**, down = **`Close < Open`** for the day.
 
 ---
 
@@ -207,6 +215,25 @@ Apply the **same** function to both sides before joining.
 | Ticker symbol | `stockinfo.Symbol` | DuckDB table name or column | **Note:** DuckDB may have one table per ticker (2754 tables!) | Resolve the company name to a ticker symbol by querying the SQLite stockinfo table then query the matching DuckDB table by name |
 
 **Cross-DB join required:** Yes. The ticker symbol in stockinfo.Symbol is the join key that connects SQLite to DuckDB trade data. The unusual structure is that DuckDB may have one table per ticker symbol resulting in 2754 separate tables.
+
+---
+
+### Yelp (query_yelp)
+**Databases:** MongoDB (`yelp_db` — `business`, `checkin` via logical name `businessinfo_database`) + DuckDB (`user_database` — `review`, `tip`, `user`)
+
+| Join Key | MongoDB Field | DuckDB Field | Format Match | Normalization |
+|----------|---------------|--------------|--------------|---------------|
+| Business identity | `business.business_id` | `review.business_ref` | Same numeric id, different prefixes | `businessid_<n>` ↔ `businessref_<n>`: align by replacing `businessref_`→`businessid_` or by stripping both prefixes to `<n>` |
+| User identity | — | `user.user_id` | Same string as | `review.user_id` ↔ `user.user_id` for cohorts and per-user review filters |
+| Registration / cohort | — | `user.yelping_since` | ISO-like date string | Filter “registered in year Y” by substring or parsed year from this field (not in Mongo) |
+
+**Cross-DB join required:** Yes. **Star ratings and one row per review are only in DuckDB `review`.** Business location text (including US state) is in Mongo `business.description`. Query each DB separately; merge in pandas after normalizing IDs. For aggregates over all reviews, avoid repeated small `limit`/`skip` loops — export full `review` and a projected `business` list (or use `json.load` on spill `.json` paths from `query_db`).
+
+**Amenities (parking, bike rack, etc.):** Stored only in Mongo `business.attributes` — often string values or stringified dicts (`BusinessParking`, `BikeParking`). **`WiFi`** is also under `attributes` (string such as `free` / `no`). **`BusinessAcceptsCreditCards`** is usually **`"True"`** / **`"False"`** strings.
+
+**Categories vs name:** For “business category” questions, use Mongo **`business.categories`** (array of strings), not the business **`name`** or **`description`** prose alone (descriptions often list “Shopping” / “Services” and mis-rank vs structured primary category). **Discover** whether `categories` exists via **`list_db`** + sample document if the harness prompt omits it. The first **categories** list entry is usually the **primary** sector for grouping. **Aggregate in `execute_python`** after projecting `business_id`, `categories`, and `attributes`.
+
+See `business_terms.md` → Yelp → calendar year × amenities; → **Yelp harness answer shapes**; → **Yelp query-class recipes**.
 
 ---
 

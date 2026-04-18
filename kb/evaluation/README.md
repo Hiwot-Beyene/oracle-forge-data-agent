@@ -1,10 +1,14 @@
 # Evaluation (DataAgentBench alignment)
 
-## Primary metric: pass@1
+## Primary metric: pass@1 (stratified)
 
-For each query instance, **pass@1** is the fraction of held-out instances where `validate.py` accepts `final_agent.json` → `final_result` against `ground_truth.csv`.
+For each query, **pass@1** is computed from multi-trial correctness (`n_pass / n_trials`).  
+Benchmark score is then **stratified**:
 
-- **Held-out set:** `eval/held_out/manifest.yaml` — evaluated by `python -m eval.harness` (see `eval/README.md`).
+1. average query pass@1 within each dataset
+2. average those per-dataset values across datasets
+
+- **Benchmark set:** `eval/held_out/manifest.yaml` — can run all query folders and multi-trial scoring via `python -m eval.harness`.
 
 ## DAB alignment
 
@@ -23,7 +27,23 @@ Aligned with `kb/corrections/log.md` and **`probes/probes.md`** (programme-requi
 
 ## Score log
 
-Append-only JSONL: `eval/scores/score_log.jsonl` (mirrored to `results/harness_score_log.jsonl` on each harness run). Compare **`first_run`** vs **`submission`** profiles in `eval/config.yaml`.
+Append-only JSONL: `eval/scores/score_log.jsonl` (mirrored to `results/harness_score_log.jsonl`).
+
+- `pass_at_1_stratified`: challenge-aligned primary metric
+- `pass_at_1_flat`: raw attempt-level pass fraction
+- `per_dataset`: dataset-level averages
+- `per_query`: query-level attempt stats
+
+Compare **`first_run`** vs **`submission`** profiles in `eval/config.yaml`.
+
+## Corrections linkage
+
+Failed attempts are exported to `eval/scores/failure_backlog.jsonl` with failure category tags.  
+Generate a corrections-ready template with:
+
+```bash
+python -m eval.correction_loop
+```
 
 ## Adversarial probes
 

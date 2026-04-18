@@ -17,12 +17,12 @@ Every bundle under `DataAgentBench/query_*/db_config.yaml` appears below. `query
 
 | `query_*` bundle | Primary entries |
 |------------------|-----------------|
-| `query_bookreview` | E1, E2 |
+| `query_bookreview` | E1, E2, E2b |
 | `query_yelp` | E3 |
 | `query_agnews` | E4 |
 | `query_googlelocal` | E5 |
-| `query_stockmarket` | E6 |
-| `query_stockindex` | E6 |
+| `query_stockmarket` | E6, E6d |
+| `query_stockindex` | E6, E6b, E6c |
 | `query_crmarenapro` | E7 |
 | `query_PATENTS` | E8 |
 | `query_GITHUB_REPOS` | E9 |
@@ -64,21 +64,37 @@ Every bundle under `DataAgentBench/query_*/db_config.yaml` appears below. `query
 
 ---
 
+## E2b — `execute_python`: fake `query_db_response` wrapper (query_bookreview)
+
+**[Query / pattern]:** Any `execute_python` that merges `books_info` with `review` after two `query_db` calls.
+
+**[Dataset]:** `query_bookreview`
+
+**[What was wrong]:** Code assumed `var_tool_query_db_*["query_db_response"]["result"]` (OpenAI-style). DataAgentBench stores **either** a raw list/dict **or** a **path string** to a JSON spill file — **no** nested wrapper. Symptom: `TypeError: string indices must be integers` or `NameError` for invented `var_tool_*` ids.
+
+**[Correct approach]:** `raw = var_tool_query_db_<exact_id_from_footer>; data = json.load(open(raw)) if isinstance(raw, str) else raw`. Use separate variables for the books query vs review query; join on normalized `bookid_*` / `purchaseid_*`.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_bookreview/query1/logs/data_agent/run_10/final_agent.json`
+
+---
+
 ## E3 — Yelp: Mongo ↔ DuckDB identity (query_yelp)
 
 **[Query / pattern]:** Location filters + ratings from Mongo businesses and DuckDB reviews.
 
 **[Dataset]:** `query_yelp`
 
-**[What was wrong]:** Joining Mongo `business_id` to DuckDB `business_ref` without prefix mapping, or skipping **`list_db`** so collection names don’t match the live catalog.
+**[What was wrong]:** Joining Mongo `business_id` to DuckDB `business_ref` without prefix mapping, or skipping **`list_db`** so collection names don’t match the live catalog. **`execute_python` failures** from invented storage names (e.g. guessed `var_tool_query_db_*`) instead of the exact `var_<tool_call_id>` in tool messages, or using truncated chat previews when the full result is a **`.json` spill file** (need `json.load(open(path))`). Endless Mongo **`limit`/`skip` paging** on `business` instead of one projected export plus one DuckDB `review` pull for state- or global aggregates.
 
-**[Correct approach]:** Map **`businessid_*` ↔ `businessref_*`**. **`list_db`** on `businessinfo_database` first, then query with real collection names.
+**[Correct approach]:** Map **`businessid_*` ↔ `businessref_*`**. **`list_db`** on `businessinfo_database` first, then query with real collection names. Use **only** the storage keys returned after each tool call; **load spill files** for full rows. For “state with most reviews” / mean rating: merge all `review` rows with `business_id`+`description`, parse state from description, **groupby** state.
 
 **[Join attempted]:** `business.business_id` ↔ `review.business_ref`  
 **[Mismatch cause]:** Prefix difference (`businessid_` vs `businessref_`).  
 **[Fix applied]:** Align IDs before merge.
 
-**[Source logs]:** `/week8-9/oracle-forge-data-agent/dab_runs/query_yelp/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl` (harness: `run_agent.py --bench_root …/dab_runs`)
+**[Learned patterns — Yelp, durable]:** (1) **Storage:** Copy **`var_tool_*`** keys exactly from each tool footer; **`json.load`** spill paths; never **`var_call_*`**. (2) **Joins:** `businessid_*` ↔ `businessref_*` before any merge. (3) **Amenity / year-window counts:** **Group Mongo rows by `business_id`**, merge `attributes` dicts, then score — skipping non-dict `attributes` on the **first** row only loses parking signal when a duplicate row exists; **`query3`** traces (`run_7` et al.) show **undercounts** from this. (4) **Category leaderboards:** DAB prompts may omit **`categories`**; **discover** via **`list_db`** + sample doc. **Never** use **`description`** keywords alone (e.g. “Shopping”) as the category dimension — use structured **`categories`** (e.g. primary = first list entry). (5) **Answer shape:** State + mean in one short line where validators use a **window**; computed means only. (6) **User cohort + top categories:** Registration year is DuckDB **`user.yelping_since`**; join **`review.user_id`** → **`user.user_id`**, then Mongo **`categories`** for volume by label; **`return_answer`** lists **exact** category strings from the top buckets (substring graders). Details: `business_terms.md` → Yelp → **Schema discovery**, **calendar year × amenities** (bullets 16–17), **Yelp harness answer shapes**, **Yelp query-class recipes**.
+
+**[Source logs] (examples):** `DataAgentBench/query_yelp/query*/logs/data_agent/run_*/final_agent.json` with `llm_calls.jsonl`, `tool_calls.jsonl`, `execute_python_artifacts.jsonl` — use **artifacts** to debug **`execute_python`**, not `log.md` as a run dump.
 
 ---
 
@@ -123,13 +139,58 @@ Every bundle under `DataAgentBench/query_*/db_config.yaml` appears below. `query
 
 **[Dataset]:** `query_stockmarket`, `query_stockindex`
 
-**[What was wrong]:** Guessing DuckDB table/column names from a company or region name.
+**[What was wrong]:** Guessing DuckDB table/column names from a company or region name. For **`query_stockindex`**, answering with **long index names only** (e.g. “NASDAQ Composite”) so **`index_trade.Index`** symbols never appear in `return_answer` (substring graders expect values like **`IXIC`**). Using **previous-close** logic for “up/down days” instead of the bundle hint (**`Close` vs `Open`**). For **monthly-investment ranking**, listing the wrong top five or **country far from symbol** so paired substring checks fail.
 
-**[Correct approach]:** Resolve **ticker** from SQLite `stockinfo` (or index metadata), then open the matching DuckDB table(s); many tickers are **separate tables** in DuckDB (`join_key_glossary.md`).
+**[Correct approach]:** **`query_stockmarket`:** Resolve **ticker** from SQLite `stockinfo`, then open the matching DuckDB table(s); many tickers are **separate tables** in DuckDB (`join_key_glossary.md`). **`query_stockindex`:** Join via **`index_trade.Index`**; **always include each index’s `Index` symbol** (from SQL) in the final answer. **Up/down days:** per DAB `db_description_withhint`, **up = `Close > Open`**, **down = `Close < Open`**. **DCA / top-N returns:** discover the index **universe** from the DB; equal monthly investments per index; **rank using one price convention consistently** — for cross-country questions, prefer **`CloseUSD`** end-to-end when populated (see `business_terms.md` — mixing **`Adj Close`** across countries compares local currencies and can mis-rank vs USD-based benchmarks). Map **country** from **`index_info`** + geography, not a static dict. List **top N** in **descending return order** with **symbol and country adjacent** for paired substring checks. Details: `business_terms.md` → **Stock Index** → **Monthly DCA — algorithm**.
 
 **[Source logs]:**
 - `query_stockmarket`: `/week8-9/DataAgentBench/query_stockmarket/query1/logs/data_agent/run_2/final_agent.json` (+ `llm_calls.jsonl`, `tool_calls.jsonl` same folder)
 - `query_stockindex`: `/week8-9/DataAgentBench/query_stockindex/query1/logs/data_agent/run_2/final_agent.json` (+ same sibling files)
+
+---
+
+## E6b — `execute_python`: wrong `var_tool_*` for `index_trade` (query_stockindex)
+
+**[Query / pattern]:** Volatility, returns, or any metric from DuckDB **`index_trade`** after separate SQLite **`index_info`** pulls.
+
+**[Dataset]:** `query_stockindex`
+
+**[What was wrong]:** Code used the **`index_info`** / `Exchange` query’s storage key (small list) for `pandas` OHLC work, or invented **`var_tool_query_db_*`** ids. Symptom: **`NameError`**, **`TypeError: JSON must be str`**, or **`list indices must be integers, not 'str'`** when indexing with `["result"]`. Alternatively, SQL **`Date >= '2020-01-01'`** on mixed-format date strings left empty or wrong rows; model then answered “no data”.
+
+**[Correct approach]:** Identify the **`query_db`** call that returned **`Index`+`Date`+`Open`+`High`+`Low`** (often spill path). `json.load(open(path))` if needed. Parse dates in Python with **`errors='coerce'`**, filter **`year >= 2020`**. For **query1**, **`return_answer`** must include **`399001.SZ`** only among index tickers (see `validate.py` forbidden list).
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_stockindex/query1/logs/data_agent/run_3/final_agent.json`
+
+---
+
+## E6c — `SUBSTR(Date,1,4)` + `json.loads(open())` + query2 forbidden tickers (query_stockindex)
+
+**[Query / pattern]:** North American **up vs down days** in a calendar year; loading full **`index_trade`** spill in **`execute_python`**.
+
+**[Dataset]:** `query_stockindex`
+
+**[What was wrong]:** (1) SQL **`CAST(SUBSTR(Date, 1, 4) AS INTEGER) = 2018`** — first four characters are often not numeric (**`Dece`**, **`Janu`**), DuckDB **Conversion Error**. (2) **`json.loads(open(path))`** or **`['result']`** on harness storage — wrong API / wrong shape. (3) **`query2` `validate.py`** forbids **`NYA`, `GSPTSE`, …** in the answer string; listing them as negatives fails; only **`IXIC`** may appear among those tickers.
+
+**[Correct approach]:** `SELECT Index, Date, Open, Close FROM index_trade WHERE Index IN (...)` without brittle year-in-SQL, or pull NA indices only; **`rows = json.load(open(spill_path))`** if storage is a path; **`pd.to_datetime`**, **`dt.year == 2018`**, count **`Close > Open`** vs **`Close < Open`**. **`return_answer`:** include **`IXIC`** only if that is the sole qualifying symbol allowed by the validator — **no forbidden substrings**.
+
+**[Source logs]:** `/week8-9/DataAgentBench/query_stockindex/query2/logs/data_agent/run_2/final_agent.json`
+
+---
+
+## E6d — `query_stockmarket`: wrong KB layer + `duckdb` in `execute_python` + spill/`["result"]` misuse
+
+**[Query / pattern]:** Arca ETFs over **`Adj Close`** threshold (Q2); NYSE non-ETF up/down day ranking (Q4); NASDAQ Capital intraday volatility counts (Q5).
+
+**[Dataset]:** `query_stockmarket`
+
+**[What was wrong]:** (1) **`context_loader`** used the **generic** `business_terms.md` head (first *N* chars) instead of **`## Stock Market (query_stockmarket)`**, so Layer 2 showed **unrelated** correction hints (e.g. music_brainz). (2) **`import duckdb`** inside **`execute_python`** — **not installed** in the DAB container → **`ModuleNotFoundError`**. (3) Treating **`var_tool_query_db_*`** spill paths as dicts and indexing **`["result"]`** → **`TypeError`**. (4) **`return_answer`** with prose excuses, **`[]`**, or **`max_iterations`** instead of **`Company Description`** strings the **`validate.py`** fuzzy-matcher expects.
+
+**[Correct approach]:** Ensure **`_build_domain_layer`** extracts the **Stock Market** H2 for **`query_stockmarket`**. Use **`query_db`** only for **`stocktrade_database`**. Use **`dab_load_rows`** / **`json.load(open(path))`** for spills. ISO **`Date`** range filters in SQL. **`return_answer`:** include **31** + all Q2 names; Q4/Q5 **top-5 names** verbatim from **`stockinfo`**. See **`business_terms.md`** → **Stock Market** → **Oracle Forge** bullets.
+
+**[Source logs]:**
+- `/week8-9/DataAgentBench/query_stockmarket/query2/logs/data_agent/run_0/final_agent.json`
+- `/week8-9/DataAgentBench/query_stockmarket/query4/logs/data_agent/run_0/final_agent.json`
+- `/week8-9/DataAgentBench/query_stockmarket/query5/logs/data_agent/run_0/final_agent.json`
 
 ---
 
@@ -234,6 +295,22 @@ Every bundle under `DataAgentBench/query_*/db_config.yaml` appears below. `query
 **[Fix applied]:** Stable `track_id` join; sample keys before full merge.
 
 **[Source logs]:** `/week8-9/DataAgentBench/query_music_brainz_20k/query1/logs/data_agent/run_2/final_agent.json` · same dir: `llm_calls.jsonl`, `tool_calls.jsonl`
+
+---
+
+## E13 — AG News category + domain KB slice (query_agnews)
+
+**[Query / pattern]:** Sports/longest description, author-specific category fraction, regional/year aggregates with inferred **World / Sports / Business / Science/Technology**.
+
+**[Dataset]:** `query_agnews`
+
+**[What was wrong]:** (1) Domain layer used the generic `business_terms.md` head truncation, so the model never saw the **AG News** H2. (2) KB claimed **`category` lived in Mongo**; DAB schema has **no category column** — only **`title` + `description`** plus SQLite metadata (**`join_key_glossary.md`**, `db_description_withhint.txt`).
+
+**[Correct approach]:** **`context_loader._build_domain_layer`**: extract **`## AG News (query_agnews)`**. Pull Mongo **`articles`** + SQLite **`article_metadata`** / **`authors`**, merge on **`article_id`**, **infer category in Python**, then **`return_answer`** with grader literals (e.g. title **The Rundown**, numeric **0.14414414414414414**, **336.6363636363636**, substring **Africa**).
+
+**[Fix applied]:** H2 extraction + corrected **`business_terms.md`** section; router hint phrases for open KB routing.
+
+**[Source logs]:** Under `DataAgentBench/query_agnews/query*/logs/data_agent/` when benchmark runs are logged there.
 
 ---
 

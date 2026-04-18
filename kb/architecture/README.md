@@ -18,7 +18,7 @@ _Status: v1.1 | Team Verified_
 | `openai_table_enrichment.md`               | Codex-powered schema enrichment              |
 | `oracle_forge_mapping.md`                  | Implementation mapping to Oracle Forge       |
 
-**Usage in Agent:** All documents in this directory are injected into the agent's baseline context. They define the architectural "ground truth" that governs tool selection and memory management.
+**Usage in Agent:** `agent/context_loader.py` loads **KB v1 (Layer 1)** from this directory: `MEMORY.md` (index) plus `architecture_system_overview.md` (system diagram and subdirectory roles). Domain data (`kb/domain/`) and corrections (`kb/corrections/`) are **separate layers** — see `architecture_system_overview.md` § “The four KB subdirectories”. Optional topic files below remain available for deep dives; the loader does not concatenate every file on every call (Karpathy “minimal precise” injection).
 
 **Verification (The Karpathy Method):**
 Every document must pass a structured **Injection Test** before it is considered valid.
